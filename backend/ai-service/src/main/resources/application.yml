@@ -1,0 +1,59 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: ai-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ai_analysis_db
+    username: ${DB_USER:ticket_admin}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+gemini:
+  api-key: ${GEMINI_API_KEY}
+  model: gemini-3.5-flash
+  base-url: https://generativelanguage.googleapis.com/v1beta/models
+
+ollama:
+  base-url: http://localhost:11434
+  embedding-model: nomic-embed-text
+  chat-model: qwen2.5:7b
+
+ai:
+  similarity:
+    threshold: 0.75
+    max-results: 5
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      gemini-api:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+        slowCallDurationThreshold: 5s
+        slowCallRateThreshold: 80
+  timelimiter:
+    instances:
+      gemini-api:
+        timeoutDuration: 10s
+
+logging:
+  level:
+    com.ticketmanagement.aiservice: INFO

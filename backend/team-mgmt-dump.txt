@@ -1,0 +1,888 @@
+﻿import { Component, inject, OnInit, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import {
+  AssignmentService,
+  TeamResponse,
+  TeamRequest,
+  AgentProfileResponse,
+  AgentSkillRequest,
+  AgentSkillResponse
+} from '../../../core/services/assignment.service';
+import { UserService } from '../../../core/services/user.service';
+import { UserResponse } from '../../../core/services/auth.service';
+import { AlertComponent } from '../../../shared/components/alert/alert.component';
+import { firstValueFrom } from 'rxjs';
+
+const CATEGORY_LIST: string[] = [
+  'ACCOUNT_ACCESS',
+  'BILLING',
+  'TECHNICAL',
+  'ORDER',
+  'DELIVERY',
+  'SECURITY',
+  'INFORMATION',
+  'OTHER'
+];
+
+const PRESET_SKILLS: string[] = [
+  'JAVA',
+  'ANGULAR',
+  'BILLING',
+  'NETWORK',
+  'SECURITY',
+  'DATABASE',
+  'OTHER'
+];
+
+type CategoryBadgeMap = Record<string, string>;
+
+@Component({
+  selector: 'app-team-management',
+  standalone: true,
+  imports: [CommonModule, FormsModule, AlertComponent],
+  template: `
+    <div class="teams-page">
+      <header class="page-header">
+        <div>
+          <h1 class="page-title">Team Management</h1>
+          <p class="page-subtitle">GÃ©rez les Ã©quipes et les compÃ©tences des agents</p>
+        </div>
+        <button class="btn btn-primary" (click)="openTeamModal()">
+          <span class="btn-icon">+</span>
+          New Team
+        </button>
+      </header>
+
+      @if (globalAlert()) {
+        <app-alert [type]="globalAlert()!.type">
+          {{ globalAlert()!.message }}
+        </app-alert>
+      }
+
+      <div class="content-grid">
+        <!-- LEFT : Teams list -->
+        <section class="teams-col">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Ã‰quipes ({{ teams().length }})</h2>
+            </div>
+
+            @if (loading.teams) {
+              <div class="loading">Chargement des Ã©quipes...</div>
+            }
+
+            <div class="teams-list">
+              @for (team of teams(); track team.id) {
+                <div
+                  class="team-card"
+                  [class.active]="selectedTeamId() === team.id"
+                  (click)="selectTeam(team.id)"
+                >
+                  <div class="team-card-header">
+                    <div class="team-name">{{ team.name }}</div>
+                    <div class="team-actions">
+                      <button class="icon-btn" title="Edit" (click)="openTeamModal(team, $event)">
+                        âœŽ
+                      </button>
+                      <button class="icon-btn danger" title="Delete" (click)="openDeleteTeamModal(team, $event)">
+                        ðŸ—‘
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="team-badges">
+                    @for (cat of team.managedCategories; track cat) {
+                      <span [class]="'badge badge-' + getBadgeStyle(cat)">
+                        {{ cat }}
+                      </span>
+                    }
+                  </div>
+
+                  <div class="team-meta">
+                    <span class="meta-item">ðŸ‘¥ {{ team.agentCount }} agent{{ team.agentCount > 1 ? 's' : '' }}</span>
+                  </div>
+                </div>
+              } @empty {
+                @if (!loading.teams) {
+                  <div class="empty">Aucune Ã©quipe crÃ©Ã©e pour le moment.</div>
+                }
+              }
+            </div>
+          </div>
+        </section>
+
+        <!-- RIGHT : Team detail -->
+        <section class="detail-col">
+          <div class="card">
+            @if (!selectedTeam()) {
+              <div class="empty-detail">
+                <div class="empty-detail-icon">ðŸ‘¥</div>
+                <h3>SÃ©lectionnez une Ã©quipe</h3>
+                <p>Cliquez sur une Ã©quipe Ã  gauche pour voir ses agents, ou crÃ©ez-en une nouvelle.</p>
+              </div>
+            } @else {
+              <div class="detail-header">
+                <div>
+                  <h2 class="card-title">{{ selectedTeam()!.name }}</h2>
+                  <div class="team-badges">
+                    @for (cat of selectedTeam()!.managedCategories; track cat) {
+                      <span [class]="'badge badge-' + getBadgeStyle(cat)">{{ cat }}</span>
+                    }
+                  </div>
+                </div>
+
+                <div class="add-agent-row">
+                  <select
+                    [disabled]="loading.addAgent || availableAgents().length === 0"
+                    [(ngModel)]="pendingAgentId"
+                    class="input"
+                  >
+                    <option [value]="null">
+                      @if (loading.availableAgents) { Chargement... }
+                      @else if (availableAgents().length === 0) { Aucun agent disponible }
+                      @else { SÃ©lectionner un agent }
+                    </option>
+                    @for (u of availableAgents(); track u.id) {
+                      <option [value]="u.id">{{ u.fullName }} ({{ u.email }})</option>
+                    }
+                  </select>
+                  <button
+                    class="btn btn-primary"
+                    [disabled]="!pendingAgentId || loading.addAgent"
+                    (click)="addAgentToTeam()"
+                  >
+                    @if (loading.addAgent) { Ajout... }
+                    @else { Add Agent }
+                  </button>
+                </div>
+              </div>
+
+              @if (loading.teamAgents) {
+                <div class="loading">Chargement des agents...</div>
+              }
+
+              <div class="agents-list">
+                @for (agent of teamAgents(); track agent.id) {
+                  <div class="agent-card">
+                    <div class="agent-header">
+                      <div class="agent-identity">
+                        <div [class]="'status-dot ' + (agent.isOnline ? 'online' : 'offline')"></div>
+                        <div>
+                          <div class="agent-name">
+                            {{ userById(agent.userId)?.fullName || 'Agent ' + agent.userId.slice(0, 6) }}
+                          </div>
+                          <div class="agent-email">
+                            {{ userById(agent.userId)?.email || agent.userId }}
+                          </div>
+                        </div>
+                      </div>
+                      <div class="agent-actions">
+                        <button
+                          class="btn btn-ghost"
+                          [disabled]="loading.skills[agent.id]"
+                          (click)="openSkillsModal(agent)"
+                        >
+                          Edit Skills
+                        </button>
+                        <button
+                          class="btn btn-danger-ghost"
+                          [disabled]="loading.removeAgent[agent.id]"
+                          (click)="removeAgentFromTeam(agent)"
+                        >
+                          Remove from team
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="agent-stats">
+                      <span class="stat">
+                        <span class="stat-label">Statut</span>
+                        <span [class]="'stat-value ' + (agent.isOnline ? 'ok' : 'dim')">
+                          {{ agent.isOnline ? 'Online' : 'Offline' }}
+                        </span>
+                      </span>
+                      <span class="stat">
+                        <span class="stat-label">Max tickets</span>
+                        <span class="stat-value">{{ agent.maxConcurrentTickets }}</span>
+                      </span>
+                    </div>
+
+                    <div class="skills-block">
+                      <div class="skills-title">CompÃ©tences</div>
+                      @if (agent.skills.length === 0) {
+                        <div class="skills-empty">Aucune compÃ©tence renseignÃ©e</div>
+                      }
+                      <div class="skills-grid">
+                        @for (skill of agent.skills; track skill.id) {
+                          <div class="skill-pill" [title]="skill.skillName + ' Niveau ' + skill.level">
+                            <span class="skill-name">{{ skill.skillName }}</span>
+                            <span class="skill-stars">
+                              @for (n of [1,2,3,4,5]; track n) {
+                                <span [class]="'star ' + (n <= skill.level ? 'filled' : '')">â˜…</span>
+                              }
+                            </span>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                } @empty {
+                  @if (!loading.teamAgents) {
+                    <div class="empty">
+                      Aucun agent dans cette Ã©quipe pour le moment. Utilisez le bouton "Add Agent" ci-dessus.
+                    </div>
+                  }
+                }
+              </div>
+            }
+          </div>
+        </section>
+      </div>
+
+      <!-- MODAL : NEW / EDIT TEAM -->
+      @if (teamModal.open) {
+        <div class="modal-backdrop" (click)="closeTeamModal()">
+          <div class="modal" (click)="$event.stopPropagation()">
+            <header class="modal-header">
+              <h3>{{ teamModal.team ? 'Edit Team' : 'New Team' }}</h3>
+              <button class="icon-btn" (click)="closeTeamModal()">âœ•</button>
+            </header>
+            <div class="modal-body">
+              @if (teamModal.alert) {
+                <app-alert [type]="teamModal.alert.type">
+                  {{ teamModal.alert.message }}
+                </app-alert>
+              }
+
+              <label class="form-label">Nom de l'Ã©quipe</label>
+              <input
+                class="input"
+                [(ngModel)]="teamModal.form.name"
+                placeholder="ex: Support Technique N2"
+                [disabled]="teamModal.loading"
+              />
+
+              <label class="form-label" style="margin-top: 1rem;">CatÃ©gories gÃ©rÃ©es</label>
+              <div class="checkbox-grid">
+                @for (cat of CATEGORY_LIST; track cat) {
+                  <label class="checkbox-row">
+                    <input
+                      type="checkbox"
+                      [disabled]="teamModal.loading"
+                      [checked]="teamModal.form.managedCategories.includes(cat)"
+                      (change)="toggleCategory(cat)"
+                    />
+                    <span [class]="'badge badge-' + getBadgeStyle(cat)">{{ cat }}</span>
+                  </label>
+                }
+              </div>
+            </div>
+            <footer class="modal-footer">
+              <button
+                class="btn btn-ghost"
+                [disabled]="teamModal.loading"
+                (click)="closeTeamModal()"
+              >
+                Cancel
+              </button>
+              <button
+                class="btn btn-primary"
+                [disabled]="teamModal.loading || !canSaveTeam()"
+                (click)="saveTeam()"
+              >
+                {{ teamModal.loading ? 'Saving...' : 'Save' }}
+              </button>
+            </footer>
+          </div>
+        </div>
+      }
+
+      <!-- MODAL : DELETE TEAM CONFIRM -->
+      @if (deleteTeamModal.open && deleteTeamModal.team) {
+        <div class="modal-backdrop" (click)="closeDeleteTeamModal()">
+          <div class="modal small" (click)="$event.stopPropagation()">
+            <header class="modal-header">
+              <h3>Supprimer l'Ã©quipe</h3>
+              <button class="icon-btn" (click)="closeDeleteTeamModal()">âœ•</button>
+            </header>
+            <div class="modal-body">
+              @if (deleteTeamModal.alert) {
+                <app-alert [type]="deleteTeamModal.alert.type">
+                  {{ deleteTeamModal.alert.message }}
+                </app-alert>
+              }
+              @if (deleteTeamModal.team.agentCount > 0) {
+                <div class="danger-block">
+                  Cette Ã©quipe contient <b>{{ deleteTeamModal.team.agentCount }}</b>
+                  agent{{ deleteTeamModal.team.agentCount > 1 ? 's' : '' }}.
+                  Veuillez les rÃ©assigner avant de supprimer.
+                </div>
+              }
+              <p>
+                ÃŠtes-vous sÃ»r(e) de vouloir supprimer l'Ã©quipe
+                <b>"{{ deleteTeamModal.team.name }}"</b> ?
+              </p>
+            </div>
+            <footer class="modal-footer">
+              <button
+                class="btn btn-ghost"
+                [disabled]="deleteTeamModal.loading"
+                (click)="closeDeleteTeamModal()"
+              >
+                Cancel
+              </button>
+              <button
+                class="btn btn-danger"
+                [disabled]="deleteTeamModal.loading || deleteTeamModal.team.agentCount > 0"
+                (click)="confirmDeleteTeam()"
+              >
+                {{ deleteTeamModal.loading ? 'Deleting...' : 'Delete' }}
+              </button>
+            </footer>
+          </div>
+        </div>
+      }
+
+      <!-- MODAL : EDIT SKILLS -->
+      @if (skillsModal.open && skillsModal.agent) {
+        <div class="modal-backdrop" (click)="closeSkillsModal()">
+          <div class="modal" (click)="$event.stopPropagation()">
+            <header class="modal-header">
+              <div>
+                <h3>CompÃ©tences de l'agent</h3>
+                <p class="modal-subtitle">
+                  {{ userById(skillsModal.agent.userId)?.fullName || skillsModal.agent.userId }}
+                </p>
+              </div>
+              <button class="icon-btn" (click)="closeSkillsModal()">âœ•</button>
+            </header>
+            <div class="modal-body">
+              @if (skillsModal.alert) {
+                <app-alert [type]="skillsModal.alert.type">
+                  {{ skillsModal.alert.message }}
+                </app-alert>
+              }
+
+              <div class="skills-list-edit">
+                @if (skillsModal.agent.skills.length === 0) {
+                  <div class="empty">Aucune compÃ©tence pour le moment.</div>
+                }
+                @for (skill of skillsModal.agent.skills; track skill.id) {
+                  <div class="skill-edit-row">
+                    <div class="skill-pill">
+                      <span class="skill-name">{{ skill.skillName }}</span>
+                      <span class="skill-stars">
+                        @for (n of [1,2,3,4,5]; track n) {
+                          <span [class]="'star ' + (n <= skill.level ? 'filled' : '')">â˜…</span>
+                        }
+                      </span>
+                    </div>
+                    <button
+                      class="icon-btn danger"
+                      title="Supprimer"
+                      [disabled]="skillsModal.loading || loading.deleteSkill[skill.id]"
+                      (click)="confirmDeleteSkill(skill)"
+                    >
+                      ðŸ—‘
+                    </button>
+                  </div>
+                }
+              </div>
+
+              <div class="divider"></div>
+
+              <label class="form-label">Ajouter une compÃ©tence</label>
+              <div class="row-inputs">
+                <select
+                  class="input"
+                  [(ngModel)]="skillsModal.form.skillName"
+                  [disabled]="skillsModal.loading"
+                >
+                  @for (s of PRESET_SKILLS; track s) {
+                    <option [value]="s">{{ s }}</option>
+                  }
+                </select>
+                <select
+                  class="input"
+                  [(ngModel)]="skillsModal.form.level"
+                  [disabled]="skillsModal.loading"
+                >
+                  <option [ngValue]="1">Niveau 1</option>
+                  <option [ngValue]="2">Niveau 2</option>
+                  <option [ngValue]="3">Niveau 3</option>
+                  <option [ngValue]="4">Niveau 4</option>
+                  <option [ngValue]="5">Niveau 5</option>
+                </select>
+                <button
+                  class="btn btn-primary"
+                  [disabled]="skillsModal.loading || !skillsModal.form.skillName"
+                  (click)="confirmAddSkill()"
+                >
+                  {{ skillsModal.loading ? 'Adding...' : 'Add Skill' }}
+                </button>
+              </div>
+            </div>
+            <footer class="modal-footer">
+              <button
+                class="btn btn-ghost"
+                [disabled]="skillsModal.loading"
+                (click)="closeSkillsModal()"
+              >
+                Close
+              </button>
+            </footer>
+          </div>
+        </div>
+      }
+    </div>
+  `,
+  styles: [`
+    .teams-page{max-width:1400px;margin:0 auto;padding:32px 24px;display:flex;flex-direction:column;gap:24px}
+    .page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    .page-title{font-family:'Space Grotesk',sans-serif;font-size:32px;color:var(--text-primary);margin:0 0 4px;font-weight:700}
+    .page-subtitle{margin:0;color:var(--text-secondary);font-size:15px}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s ease}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .btn-icon{font-weight:700;font-size:16px}
+    .btn-primary{background:linear-gradient(135deg,var(--accent-blue),var(--accent-violet));color:#fff}
+    .btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 24px rgba(79,70,229,.35)}
+    .btn-danger{background:#EF4444;color:#fff}
+    .btn-danger:hover:not(:disabled){background:#DC2626}
+    .btn-danger-ghost{background:transparent;color:#EF4444;border:1px solid rgba(239,68,68,.25)}
+    .btn-danger-ghost:hover:not(:disabled){background:rgba(239,68,68,.08)}
+    .btn-ghost{background:transparent;color:var(--text-secondary);border:1px solid var(--border)}
+    .btn-ghost:hover:not(:disabled){background:var(--bg-secondary);color:var(--text-primary)}
+    .content-grid{display:grid;grid-template-columns:380px 1fr;gap:24px;align-items:flex-start}
+    .card{background-color:var(--surface);border:1px solid var(--border);border-radius:24px;padding:24px;box-shadow:0 12px 32px rgba(15,23,42,.04)}
+    .card-header{margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
+    .card-title{margin:0;font-size:20px;font-weight:700;color:var(--text-primary);font-family:'Space Grotesk',sans-serif}
+    .teams-list{display:flex;flex-direction:column;gap:12px}
+    .team-card{padding:16px;border-radius:18px;border:1px solid var(--border);background:var(--surface);cursor:pointer;transition:all .2s ease}
+    .team-card:hover{border-color:var(--accent-violet);transform:translateY(-1px)}
+    .team-card.active{border-color:var(--accent-violet);background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(139,92,246,.08));box-shadow:0 0 0 1px rgba(139,92,246,.25)}
+    .team-card-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+    .team-name{font-size:16px;font-weight:700;color:var(--text-primary)}
+    .team-actions{display:flex;gap:4px}
+    .icon-btn{width:32px;height:32px;border-radius:10px;border:none;background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s ease}
+    .icon-btn:hover{background:rgba(139,92,246,.12);color:var(--accent-violet)}
+    .icon-btn.danger:hover{background:rgba(239,68,68,.1);color:#EF4444}
+    .icon-btn:disabled{opacity:.4;cursor:not-allowed}
+    .team-badges{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+    .badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+    .badge-ACCOUNT_ACCESS{background:rgba(59,130,246,.12);color:#3B82F6}
+    .badge-BILLING{background:rgba(16,185,129,.12);color:#10B981}
+    .badge-TECHNICAL{background:rgba(99,102,241,.12);color:#6366F1}
+    .badge-ORDER{background:rgba(245,158,11,.12);color:#F59E0B}
+    .badge-DELIVERY{background:rgba(168,85,247,.12);color:#A855F7}
+    .badge-SECURITY{background:rgba(239,68,68,.12);color:#EF4444}
+    .badge-INFORMATION{background:rgba(6,182,212,.12);color:#06B6D4}
+    .badge-OTHER{background:rgba(100,116,139,.12);color:#64748B}
+    .team-meta{display:flex;align-items:center;color:var(--text-secondary);font-size:13px}
+    .meta-item+.meta-item{margin-left:14px}
+    .loading,.empty{padding:24px 8px;text-align:center;color:var(--text-secondary);font-size:14px}
+    .empty-detail{padding:60px 24px;text-align:center;color:var(--text-secondary)}
+    .empty-detail-icon{font-size:56px;margin-bottom:16px}
+    .empty-detail h3{margin:0 0 8px;color:var(--text-primary);font-family:'Space Grotesk',sans-serif;font-weight:700}
+    .detail-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+    .add-agent-row{display:flex;gap:8px;min-width:320px;max-width:100%;flex-wrap:wrap}
+    .input{padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text-primary);font-size:14px;outline:none;transition:border-color .2s ease;flex:1;min-width:220px}
+    .input:focus{border-color:var(--accent-violet);box-shadow:0 0 0 3px rgba(139,92,246,.15)}
+    .agents-list{display:flex;flex-direction:column;gap:14px}
+    .agent-card{padding:18px;border:1px solid var(--border);border-radius:20px;background:var(--bg-secondary)}
+    .agent-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+    .agent-identity{display:flex;align-items:center;gap:12px}
+    .status-dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto}
+    .status-dot.online{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.2)}
+    .status-dot.offline{background:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.2)}
+    .agent-name{font-size:15px;font-weight:700;color:var(--text-primary)}
+    .agent-email{font-size:13px;color:var(--text-secondary)}
+    .agent-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .agent-stats{display:flex;gap:24px;margin-bottom:14px;flex-wrap:wrap}
+    .stat{display:flex;flex-direction:column;gap:2px}
+    .stat-label{font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
+    .stat-value{font-size:14px;font-weight:600;color:var(--text-primary)}
+    .stat-value.ok{color:#22c55e}
+    .stat-value.dim{color:var(--text-secondary)}
+    .skills-block{margin-top:6px}
+    .skills-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-secondary);margin-bottom:8px}
+    .skills-empty{font-size:13px;color:var(--text-secondary);margin-bottom:6px}
+    .skills-grid{display:flex;flex-wrap:wrap;gap:8px}
+    .skill-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:13px;font-weight:600;color:var(--text-primary)}
+    .skill-stars{display:inline-flex;gap:1px;font-size:12px;letter-spacing:.5px}
+    .star{color:rgba(148,163,184,.35)}
+    .star.filled{color:#F59E0B}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px}
+    .modal{background:var(--surface);border:1px solid var(--border);border-radius:24px;width:100%;max-width:560px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(15,23,42,.3)}
+    .modal.small{max-width:440px}
+    .modal-header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px 16px;border-bottom:1px solid var(--border)}
+    .modal-header h3{margin:0;font-family:'Space Grotesk',sans-serif;font-size:20px;color:var(--text-primary);font-weight:700}
+    .modal-subtitle{margin:4px 0 0;font-size:13px;color:var(--text-secondary)}
+    .modal-body{padding:20px 24px;overflow-y:auto;flex:1}
+    .modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+    .form-label{display:block;font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:8px}
+    .checkbox-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .checkbox-row{display:inline-flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;border:1px solid var(--border);cursor:pointer;font-size:12px;user-select:none}
+    .checkbox-row input{cursor:pointer}
+    .row-inputs{display:flex;gap:8px;flex-wrap:wrap}
+    .skills-list-edit{display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
+    .skill-edit-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 4px}
+    .divider{height:1px;background:var(--border);margin:20px 0}
+    .danger-block{padding:14px 16px;border-radius:12px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#ef4444;margin-bottom:14px;font-size:14px}
+    @media (max-width:1100px){.content-grid{grid-template-columns:1fr}}
+    @media (max-width:560px){.teams-page{padding:20px 16px}.checkbox-grid{grid-template-columns:1fr}.modal{border-radius:20px}.modal-header,.modal-body,.modal-footer{padding-left:18px;padding-right:18px}}
+  `]
+})
+export class TeamManagementComponent implements OnInit {
+  private readonly assignmentService = inject(AssignmentService);
+  private readonly userService = inject(UserService);
+
+  readonly CATEGORY_LIST = CATEGORY_LIST;
+  readonly PRESET_SKILLS = PRESET_SKILLS;
+
+  readonly teams = signal<TeamResponse[]>([]);
+  readonly selectedTeamId = signal<string | null>(null);
+  readonly selectedTeam = signal<TeamResponse | null>(null);
+  readonly teamAgents = signal<AgentProfileResponse[]>([]);
+
+  readonly users = signal<UserResponse[]>([]);
+  readonly userMap = signal<Record<string, UserResponse>>({});
+  readonly availableAgents = signal<UserResponse[]>([]);
+  readonly pendingAgentId = signal<string | null>(null);
+
+  readonly globalAlert = signal<{ type: 'success' | 'error' | 'info' | 'warning'; message: string } | null>(null);
+
+  readonly loading = {
+    teams: false,
+    teamAgents: false,
+    availableAgents: false,
+    addAgent: false,
+    removeAgent: {} as Record<string, boolean>,
+    skills: {} as Record<string, boolean>,
+    deleteSkill: {} as Record<string, boolean>
+  };
+
+  readonly teamModal = {
+    open: false,
+    team: null as TeamResponse | null,
+    loading: false,
+    form: { name: '', managedCategories: [] as string[] },
+    alert: null as { type: 'success' | 'error' | 'info' | 'warning'; message: string } | null
+  };
+
+  readonly deleteTeamModal = {
+    open: false,
+    team: null as TeamResponse | null,
+    loading: false,
+    alert: null as { type: 'success' | 'error' | 'info' | 'warning'; message: string } | null
+  };
+
+  readonly skillsModal = {
+    open: false,
+    agent: null as AgentProfileResponse | null,
+    loading: false,
+    form: { skillName: 'JAVA', level: 1 } as AgentSkillRequest,
+    alert: null as { type: 'success' | 'error' | 'info' | 'warning'; message: string } | null
+  };
+
+  ngOnInit() {
+    this.loadAll();
+  }
+
+  async loadAll() {
+    this.loading.teams = true;
+    this.loading.availableAgents = true;
+    try {
+      const [teams, users] = await Promise.all([
+        firstValueFrom(this.assignmentService.getTeams()),
+        firstValueFrom(this.userService.getUsers(undefined, 'AGENT', true))
+      ]);
+      this.teams.set(teams);
+      this.users.set(users);
+      const map: Record<string, UserResponse> = {};
+      users.forEach(u => (map[u.id] = u));
+      this.userMap.set(map);
+
+      if (this.selectedTeamId()) {
+        this.selectTeam(this.selectedTeamId()!);
+      }
+      this.refreshAvailableAgents();
+    } catch (e: any) {
+      this.setGlobalAlert('error', 'Impossible de charger les donnÃ©es. VÃ©rifiez que assignment-service est dÃ©marrÃ©.');
+      console.error(e);
+    } finally {
+      this.loading.teams = false;
+      this.loading.availableAgents = false;
+    }
+  }
+
+  refreshAvailableAgents() {
+    const agentsWithProfile = new Set<string>();
+    const assignedUserIds = new Set<string>();
+
+    for (const team of this.teams()) {
+      // not fully accurate without agents loaded; we'll refresh after selecting.
+    }
+
+    // Instead, fetch agent profiles to know who is already activated/assigned
+    firstValueFrom(this.assignmentService.getAgents())
+      .then(profiles => {
+        profiles.forEach(p => {
+          agentsWithProfile.add(p.userId);
+          if (p.teamId) assignedUserIds.add(p.userId);
+        });
+
+        const activeUsers = this.users();
+        const available = activeUsers.filter(u => {
+          const hasProfile = agentsWithProfile.has(u.id);
+          if (!hasProfile) return true; // can be activated
+          return !assignedUserIds.has(u.id);
+        });
+
+        this.availableAgents.set(available);
+      })
+      .catch(err => {
+        // If service is down, fall back to listing users without filtering
+        this.availableAgents.set(this.users());
+        console.warn('Could not load agent profiles for availability filter', err);
+      });
+  }
+
+  userById(userId: string): UserResponse | undefined {
+    return this.userMap()[userId];
+  }
+
+  async selectTeam(id: string) {
+    this.selectedTeamId.set(id);
+    this.selectedTeam.set(this.teams().find(t => t.id === id) || null);
+    this.loading.teamAgents = true;
+    this.teamAgents.set([]);
+    try {
+      const agents = await firstValueFrom(this.assignmentService.getTeamAgents(id));
+      this.teamAgents.set(agents);
+    } catch (e: any) {
+      this.setGlobalAlert('error', "Impossible de charger les agents de l'Ã©quipe.");
+      console.error(e);
+    } finally {
+      this.loading.teamAgents = false;
+    }
+  }
+
+  openTeamModal(team?: TeamResponse, event?: MouseEvent) {
+    if (event) event.stopPropagation();
+    this.teamModal.alert = null;
+    this.teamModal.loading = false;
+    this.teamModal.team = team || null;
+    this.teamModal.form = {
+      name: team?.name || '',
+      managedCategories: team?.managedCategories ? [...(team.managedCategories as unknown as string[])] : []
+    };
+    this.teamModal.open = true;
+  }
+
+  closeTeamModal() {
+    this.teamModal.open = false;
+    this.teamModal.team = null;
+    this.teamModal.alert = null;
+  }
+
+  toggleCategory(cat: string) {
+    const cur = this.teamModal.form.managedCategories;
+    if (cur.includes(cat)) {
+      this.teamModal.form.managedCategories = cur.filter(c => c !== cat);
+    } else {
+      this.teamModal.form.managedCategories = [...cur, cat];
+    }
+  }
+
+  canSaveTeam(): boolean {
+    const f = this.teamModal.form;
+    return !!(f.name && f.name.trim().length > 0 && f.managedCategories.length > 0);
+  }
+
+  async saveTeam() {
+    if (!this.canSaveTeam()) return;
+    this.teamModal.loading = true;
+    this.teamModal.alert = null;
+    const request: TeamRequest = {
+      name: this.teamModal.form.name.trim(),
+      managedCategories: this.teamModal.form.managedCategories
+    };
+    try {
+      if (this.teamModal.team) {
+        await firstValueFrom(this.assignmentService.updateTeam(this.teamModal.team.id, request));
+        this.setGlobalAlert('success', 'Ã‰quipe mise Ã  jour avec succÃ¨s.');
+      } else {
+        const created = await firstValueFrom(this.assignmentService.createTeam(request));
+        this.setGlobalAlert('success', 'Ã‰quipe crÃ©Ã©e avec succÃ¨s.');
+        this.selectedTeamId.set(created.id);
+      }
+      this.closeTeamModal();
+      await this.loadAll();
+    } catch (e: any) {
+      const msg = e?.error?.message || "Erreur lors de l'enregistrement.";
+      this.teamModal.alert = { type: 'error', message: msg };
+    } finally {
+      this.teamModal.loading = false;
+    }
+  }
+
+  openDeleteTeamModal(team: TeamResponse, event?: MouseEvent) {
+    if (event) event.stopPropagation();
+    this.deleteTeamModal.team = team;
+    this.deleteTeamModal.open = true;
+    this.deleteTeamModal.loading = false;
+    this.deleteTeamModal.alert = null;
+  }
+
+  closeDeleteTeamModal() {
+    this.deleteTeamModal.open = false;
+    this.deleteTeamModal.team = null;
+    this.deleteTeamModal.alert = null;
+  }
+
+  async confirmDeleteTeam() {
+    if (!this.deleteTeamModal.team) return;
+    this.deleteTeamModal.loading = true;
+    this.deleteTeamModal.alert = null;
+    try {
+      await firstValueFrom(this.assignmentService.deleteTeam(this.deleteTeamModal.team.id));
+      if (this.selectedTeamId() === this.deleteTeamModal.team.id) {
+        this.selectedTeamId.set(null);
+        this.selectedTeam.set(null);
+        this.teamAgents.set([]);
+      }
+      this.setGlobalAlert('success', 'Ã‰quipe supprimÃ©e avec succÃ¨s.');
+      this.closeDeleteTeamModal();
+      await this.loadAll();
+    } catch (e: any) {
+      const msg = e?.error?.message || 'Impossible de supprimer cette Ã©quipe.';
+      this.deleteTeamModal.alert = { type: 'error', message: msg };
+    } finally {
+      this.deleteTeamModal.loading = false;
+    }
+  }
+
+  async addAgentToTeam() {
+    const userId = this.pendingAgentId();
+    const teamId = this.selectedTeamId();
+    if (!userId || !teamId) return;
+
+    this.loading.addAgent = true;
+    try {
+      // ensure agent profile exists
+      let profile: AgentProfileResponse;
+      const existing = (await firstValueFrom(this.assignmentService.getAgents())).find(a => a.userId === userId);
+      if (!existing) {
+        profile = await firstValueFrom(
+          this.assignmentService.createAgentProfile({ userId, maxConcurrentTickets: 5 })
+        );
+      } else {
+        profile = existing;
+      }
+
+      // assign to team
+      await firstValueFrom(
+        this.assignmentService.updateAgentTeam(profile.id, { teamId })
+      );
+
+      this.pendingAgentId.set(null);
+      this.setGlobalAlert('success', 'Agent ajoutÃ© Ã  l\'Ã©quipe avec succÃ¨s.');
+      await this.loadAll();
+    } catch (e: any) {
+      const msg = e?.error?.message || "Erreur lors de l'ajout de l'agent.";
+      this.setGlobalAlert('error', msg);
+    } finally {
+      this.loading.addAgent = false;
+    }
+  }
+
+  async removeAgentFromTeam(agent: AgentProfileResponse) {
+    this.loading.removeAgent[agent.id] = true;
+    try {
+      await firstValueFrom(this.assignmentService.updateAgentTeam(agent.id, { teamId: null }));
+      this.setGlobalAlert('success', 'Agent retirÃ© de l\'Ã©quipe.');
+      await this.loadAll();
+    } catch (e: any) {
+      const msg = e?.error?.message || 'Erreur.';
+      this.setGlobalAlert('error', msg);
+    } finally {
+      this.loading.removeAgent[agent.id] = false;
+    }
+  }
+
+  openSkillsModal(agent: AgentProfileResponse) {
+    this.loading.skills[agent.id] = false;
+    this.skillsModal.agent = JSON.parse(JSON.stringify(agent));
+    this.skillsModal.open = true;
+    this.skillsModal.loading = false;
+    this.skillsModal.alert = null;
+    this.skillsModal.form = { skillName: 'JAVA', level: 3 };
+  }
+
+  closeSkillsModal() {
+    this.skillsModal.open = false;
+    this.skillsModal.agent = null;
+    this.skillsModal.alert = null;
+    void this.loadAll();
+  }
+
+  async confirmAddSkill() {
+    if (!this.skillsModal.agent) return;
+    this.skillsModal.loading = true;
+    this.skillsModal.alert = null;
+    try {
+      const updated = await firstValueFrom(
+        this.assignmentService.addSkill(this.skillsModal.agent.id, {
+          skillName: this.skillsModal.form.skillName.toUpperCase(),
+          level: Number(this.skillsModal.form.level)
+        })
+      );
+      this.skillsModal.agent = updated;
+      this.skillsModal.alert = { type: 'success', message: 'CompÃ©tence ajoutÃ©e / mise Ã  jour.' };
+    } catch (e: any) {
+      const msg = e?.error?.message || 'Erreur.';
+      this.skillsModal.alert = { type: 'error', message: msg };
+    } finally {
+      this.skillsModal.loading = false;
+    }
+  }
+
+  async confirmDeleteSkill(skill: AgentSkillResponse) {
+    if (!this.skillsModal.agent) return;
+    this.loading.deleteSkill[skill.id] = true;
+    try {
+      await firstValueFrom(
+        this.assignmentService.deleteSkill(this.skillsModal.agent.id, skill.id)
+      );
+      const refreshed = await firstValueFrom(this.assignmentService.getAgent(this.skillsModal.agent.id));
+      this.skillsModal.agent = refreshed;
+    } catch (e: any) {
+      const msg = e?.error?.message || 'Erreur.';
+      this.skillsModal.alert = { type: 'error', message: msg };
+    } finally {
+      this.loading.deleteSkill[skill.id] = false;
+    }
+  }
+
+  getBadgeStyle(cat: string): string {
+    const map: CategoryBadgeMap = {
+      ACCOUNT_ACCESS: 'ACCOUNT_ACCESS',
+      BILLING: 'BILLING',
+      TECHNICAL: 'TECHNICAL',
+      ORDER: 'ORDER',
+      DELIVERY: 'DELIVERY',
+      SECURITY: 'SECURITY',
+      INFORMATION: 'INFORMATION',
+      OTHER: 'OTHER'
+    };
+    return map[cat] || 'OTHER';
+  }
+
+  private setGlobalAlert(type: 'success' | 'error' | 'info' | 'warning', message: string) {
+    this.globalAlert.set({ type, message });
+    setTimeout(() => {
+      if (this.globalAlert()?.message === message) this.globalAlert.set(null);
+    }, 6000);
+  }
+}

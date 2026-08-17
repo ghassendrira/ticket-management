@@ -1,0 +1,16 @@
+package com.ticketmanagement.assignmentservice.dto;
+
+public enum NotificationType {
+    TICKET_ASSIGNED,
+    STATUS_CHANGED,
+    COMMENT_ADDED,
+    USER_CREATED,
+    PASSWORD_RESET,
+    NEW_TICKET,
+    CRITICAL_TICKET,
+    ESCALATION_REQUEST,
+    ESCALATION_ACCEPTED,
+    ESCALATION_REJECTED,
+    ESCALATION_REASSIGNED,
+    TEAM_UPDATE
+}

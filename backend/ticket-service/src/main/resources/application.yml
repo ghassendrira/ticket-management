@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: ticket-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ticket_management
+    username: ticket_admin
+    password: POSTGRES_PASSWORD
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
+
+server:
+  port: 8081
+
+app:
+  upload:
+    base-dir: ${UPLOAD_BASE_DIR:./uploads}
+
+auth:
+  service:
+    url: http://localhost:8082
+notification:
+  service:
+    url: http://localhost:8084
+assignment:
+  service:
+    url: http://localhost:8083
+internal:
+  service-secret: ${INTERNAL_SERVICE_SECRET:my-super-secret-internal-key-for-service-to-service-communication-only}

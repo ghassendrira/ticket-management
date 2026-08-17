@@ -1,0 +1,227 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1 class="page-title">Escalation Management</h1>
+    <div class="header-actions">
+      <app-button variant="secondary" (click)="loadEscalations()" [disabled]="loading()">
+        🔄 Refresh
+      </app-button>
+    </div>
+  </div>
+
+  @if (errorMessage()) {
+    <app-alert type="error" class="mb-4">{{ errorMessage() }}</app-alert>
+  }
+
+  <!-- Stats Cards -->
+  <div class="stats-grid">
+    <div class="stat-card total">
+      <div class="stat-icon">📊</div>
+      <div class="stat-info">
+        <div class="stat-value">{{ totalCount() }}</div>
+        <div class="stat-label">Total Escalations</div>
+      </div>
+    </div>
+    <div class="stat-card pending">
+      <div class="stat-icon">⏳</div>
+      <div class="stat-info">
+        <div class="stat-value">{{ pendingCount() }}</div>
+        <div class="stat-label">Pending</div>
+      </div>
+    </div>
+    <div class="stat-card accepted">
+      <div class="stat-icon">✅</div>
+      <div class="stat-info">
+        <div class="stat-value">{{ acceptedCount() }}</div>
+        <div class="stat-label">Accepted</div>
+      </div>
+    </div>
+    <div class="stat-card rejected">
+      <div class="stat-icon">❌</div>
+      <div class="stat-info">
+        <div class="stat-value">{{ rejectedCount() }}</div>
+        <div class="stat-label">Rejected</div>
+      </div>
+    </div>
+    <div class="stat-card reassigned">
+      <div class="stat-icon">🔄</div>
+      <div class="stat-info">
+        <div class="stat-value">{{ reassignedCount() }}</div>
+        <div class="stat-label">Reassigned</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters Bar -->
+  <div class="filters-bar">
+    <input
+      type="text"
+      placeholder="Search by ticket, agent, reason..."
+      [ngModel]="searchQuery()"
+      (ngModelChange)="searchQuery.set($event); onFilterChange()"
+      class="search-input"
+    />
+    <select
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); onFilterChange()"
+      class="filter-select"
+    >
+      <option value="">All Statuses</option>
+      <option value="PENDING">Pending</option>
+      <option value="ACCEPTED">Accepted</option>
+      <option value="REJECTED">Rejected</option>
+      <option value="REASSIGNED">Reassigned</option>
+      <option value="CANCELLED">Cancelled</option>
+      <option value="RESOLVED">Resolved</option>
+    </select>
+
+    @if (isManager()) {
+      <select
+        [ngModel]="agentFilter()"
+        (ngModelChange)="agentFilter.set($event); onFilterChange()"
+        class="filter-select"
+      >
+        <option value="">All Agents</option>
+        @for (agent of agents(); track agent.id) {
+          <option [value]="agent.id">{{ agent.fullName }}</option>
+        }
+      </select>
+    }
+
+    <input
+      type="date"
+      [ngModel]="dateFrom()"
+      (ngModelChange)="dateFrom.set($event); onFilterChange()"
+      class="filter-select date-input"
+      title="From Date"
+    />
+    <input
+      type="date"
+      [ngModel]="dateTo()"
+      (ngModelChange)="dateTo.set($event); onFilterChange()"
+      class="filter-select date-input"
+      title="To Date"
+    />
+    <select
+      [ngModel]="sortBy()"
+      (ngModelChange)="sortBy.set($event)"
+      class="filter-select"
+    >
+      <option value="createdAt">Created Date</option>
+      <option value="updatedAt">Updated Date</option>
+      <option value="priority">Priority</option>
+    </select>
+    <button
+      (click)="toggleSortDirection()"
+      class="sort-button"
+      [title]="sortDirection() === 'asc' ? 'Ascending' : 'Descending'"
+    >
+      {{ sortDirection() === 'asc' ? '↑' : '↓' }}
+    </button>
+    <button (click)="resetFilters()" class="reset-button">Reset</button>
+  </div>
+
+  <!-- Table -->
+  <div class="table-card">
+    @if (loading()) {
+      <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <p>Loading escalations...</p>
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="escalations-table">
+          <thead>
+            <tr>
+              <th>Ticket</th>
+              <th>Reason</th>
+              <th>Requested By</th>
+              @if (isManager()) {
+                <th>Team</th>
+              }
+              <th>Priority</th>
+              <th>Ticket Status</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Updated</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (esc of paginatedEscalations(); track esc.id) {
+              <tr class="escalation-row" (click)="openDrawer(esc)">
+                <td class="ticket-cell">
+                  <button type="button" class="ticket-link" (click)="$event.stopPropagation(); viewTicket(esc.ticketId)">
+                    <span class="ticket-id">#{{ esc.ticketRequestId || esc.ticketId.substring(0, 8) }}</span>
+                    <span class="ticket-title">{{ esc.ticketTitle || 'Untitled' }}</span>
+                  </button>
+                </td>
+                <td class="reason-cell">
+                  <span class="reason-text">{{ esc.reason }}</span>
+                </td>
+                <td>{{ esc.requestedByAgentName || esc.requestedByAgentId }}</td>
+                @if (isManager()) {
+                  <td>{{ esc.teamName || '-' }}</td>
+                }
+                <td>
+                  @if (esc.ticketPriority) {
+                    <span class="priority-badge" [class]="esc.ticketPriority.toLowerCase()">
+                      {{ getPriorityLabel(esc.ticketPriority) }}
+                    </span>
+                  } @else {
+                    <span class="text-muted">N/A</span>
+                  }
+                </td>
+                <td>
+                  @if (esc.ticketStatus) {
+                    <span class="status-badge ticket-status" [class]="esc.ticketStatus.toLowerCase()">
+                      {{ getTicketStatusLabel(esc.ticketStatus) }}
+                    </span>
+                  } @else {
+                    <span class="text-muted">N/A</span>
+                  }
+                </td>
+                <td>
+                  <span class="escalation-status-badge" [class]="esc.status.toLowerCase()">
+                    {{ getStatusLabel(esc.status) }}
+                  </span>
+                </td>
+                <td class="date-cell">{{ formatDate(esc.createdAt) }}</td>
+                <td class="date-cell">{{ formatDate(esc.updatedAt) }}</td>
+                <td class="actions-cell" (click)="$event.stopPropagation()">
+                  <div class="actions">
+                    <button class="action-btn" (click)="openDrawer(esc)">View</button>
+                    <button class="action-btn secondary" (click)="viewTicket(esc.ticketId)">Ticket</button>
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="isManager() ? 10 : 9" class="empty-state-cell">
+                  <div class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <p>No escalations found</p>
+                    <p class="empty-hint">Try adjusting your filters or check back later.</p>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination
+        [totalItems]="filteredEscalations().length"
+        [pageSize]="pageSize"
+        [currentPage]="currentPage()"
+        (pageChange)="onPageChange($event)"
+      />
+    }
+  </div>
+</div>
+
+<app-escalation-drawer
+  [open]="drawerOpen()"
+  [escalation]="selectedEscalation()"
+  [isManager]="isManager()"
+  (close)="closeDrawer()"
+  (updated)="onEscalationUpdated()"
+></app-escalation-drawer>

@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: assignment-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/assignment_db}
+    username: ${DB_USERNAME:ticket_admin}
+    password: ${DB_PASSWORD:POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: ${SERVER_PORT:8083}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+
+jwt:
+  secret: ${JWT_SECRET:dGhpc0lzQVZlcnlMb25nQW5kUmFuZG9tU2VjcmV0S2V5Rm9yRGV2ZWxvcG1lbnRPbmx5MTIzNDU2Nzg5MA==}
+auth:
+  service:
+    url: ${AUTH_SERVICE_URL:http://localhost:8082}
+
+notification:
+  service:
+    url: ${NOTIFICATION_SERVICE_URL:http://localhost:8084}
+
+internal:
+  service-secret: ${INTERNAL_SERVICE_SECRET:my-super-secret-internal-key-for-service-to-service-communication-only}

@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: auth-service
+              uri: http://localhost:8082
+              predicates:
+                - Path=/api/auth/**
+
+            - id: users-service-details
+              uri: http://localhost:8081
+              predicates:
+                - Path=/api/users/*/details
+
+            - id: users-service
+              uri: http://localhost:8082
+              predicates:
+                - Path=/api/users/**
+
+            # IMPORTANT: stats team = ticket-service (avant assignment)
+            - id: ticket-service-team-stats-workload
+              uri: http://localhost:8081
+              predicates:
+                - Path=/api/teams/*/members-workload
+
+            - id: ticket-service-team-stats-activity
+              uri: http://localhost:8081
+              predicates:
+                - Path=/api/teams/*/activity
+
+            - id: assignment-service
+              uri: http://localhost:8083
+              predicates:
+                - Path=/api/teams/**,/api/agents/**,/api/assignments/**
+
+            - id: ai-service
+              uri: http://localhost:8085
+              predicates:
+                - Path=/api/ai/**,/api/tickets/*/similar,/api/tickets/*/embedding
+              metadata:
+                response-timeout: -1
+
+            - id: ticket-service
+              uri: http://localhost:8081
+              predicates:
+                - Path=/api/tickets/**,/api/attachments/**,/api/analytics/**
+
+            - id: notification-service
+              uri: http://localhost:8084
+              predicates:
+                - Path=/api/notifications/**
+
+server:
+  port: 8080
+
+jwt:
+  secret: ${JWT_SECRET:dGhpc0lzQVZlcnlMb25nQW5kUmFuZG9tU2VjcmV0S2V5Rm9yRGV2ZWxvcG1lbnRPbmx5MTIzNDU2Nzg5MA==}

@@ -1,0 +1,251 @@
+@if (open) {
+  <div class="drawer-overlay" (click)="onOverlayClick($event)" [class.visible]="open">
+    <aside class="drawer" [class.open]="open" role="dialog" aria-modal="true">
+      @if (escalation) {
+        <header class="drawer-header">
+          <div class="header-left">
+            <h2 class="drawer-title">{{ 'ESCALATION_DRAWER.TITLE' | translate }}</h2>
+            <span class="escalation-status-badge" [class]="escalation!.status.toLowerCase()">
+              {{ getStatusLabel(escalation!.status) }}
+            </span>
+          </div>
+          <button class="close-btn" (click)="close.emit()" aria-label="Close">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </header>
+
+        <div class="drawer-body">
+          <!-- Action Messages -->
+          @if (actionError()) {
+            <app-alert type="error" class="mb-4">{{ actionError() }}</app-alert>
+          }
+          @if (actionSuccess()) {
+            <app-alert type="success" class="mb-4">{{ actionSuccess() }}</app-alert>
+          }
+
+          <!-- Ticket Info Section -->
+          <section class="info-section">
+            <h3 class="section-title">
+              <span class="section-icon">🎫</span>
+              {{ 'ESCALATION_DRAWER.TICKET_LABEL' | translate }}
+            </h3>
+            <div class="info-card" (click)="goToTicket()" role="button" tabindex="0">
+              <div class="ticket-header-row">
+                <div class="ticket-id">#{{ escalation!.ticketRequestId || escalation!.ticketId.substring(0, 8) }}</div>
+                @if (escalation!.ticketPriority) {
+                  <span class="priority-badge" [class]="escalation!.ticketPriority.toLowerCase()">
+                    {{ getPriorityLabel(escalation!.ticketPriority) }}
+                  </span>
+                }
+              </div>
+              <div class="ticket-title-row">{{ escalation!.ticketTitle || ('LIST.EMPTY_UNTITLED' | translate) }}</div>
+              <div class="ticket-meta-row">
+                @if (escalation!.ticketStatus) {
+                  <span class="status-badge ticket-status" [class]="escalation!.ticketStatus.toLowerCase()">
+                    {{ getTicketStatusLabel(escalation!.ticketStatus) }}
+                  </span>
+                }
+                <span class="go-to-ticket-hint">{{ 'ESCALATION_DRAWER.TICKET_LABEL' | translate }} →</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Escalation Reason -->
+          <section class="info-section">
+            <h3 class="section-title">
+              <span class="section-icon">💬</span>
+              {{ 'ESCALATION_DRAWER.REASON_LABEL' | translate }}
+            </h3>
+            <div class="reason-card">
+              <p class="reason-text">{{ escalation!.reason }}</p>
+            </div>
+          </section>
+
+          <!-- Context Info -->
+          <section class="info-section">
+            <h3 class="section-title">
+              <span class="section-icon">📋</span>
+              {{ 'ESCALATION_DRAWER.CONTEXT_LABEL' | translate }}
+            </h3>
+            <div class="context-grid">
+              <div class="context-item">
+                <span class="context-label">{{ 'ESCALATION_DRAWER.REQUESTED_BY' | translate }}</span>
+                <span class="context-value">{{ escalation!.requestedByAgentName || escalation!.requestedByAgentId }}</span>
+              </div>
+              @if (escalation!.teamName) {
+                <div class="context-item">
+                  <span class="context-label">{{ 'ESCALATION_DRAWER.TEAM_LABEL' | translate }}</span>
+                  <span class="context-value">{{ escalation!.teamName }}</span>
+                </div>
+              }
+              @if (escalation!.reassignedToAgentName || escalation!.reassignedToAgentId) {
+                <div class="context-item">
+                  <span class="context-label">{{ 'ESCALATION_DRAWER.REASSIGNED_TO' | translate }}</span>
+                  <span class="context-value">{{ escalation!.reassignedToAgentName || escalation!.reassignedToAgentId }}</span>
+                </div>
+              }
+              <div class="context-item">
+                <span class="context-label">{{ 'ESCALATION_DRAWER.CREATED_LABEL' | translate }}</span>
+                <span class="context-value">{{ formatDate(escalation!.createdAt) }}</span>
+              </div>
+              <div class="context-item">
+                <span class="context-label">{{ 'ESCALATION_DRAWER.UPDATED_LABEL' | translate }}</span>
+                <span class="context-value">{{ formatDate(escalation!.updatedAt) }}</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Manager Response Reason (if rejected) -->
+          @if (escalation!.status === 'REJECTED' && escalation!.managerResponseReason) {
+            <section class="info-section">
+              <h3 class="section-title rejection-title">
+                <span class="section-icon">❌</span>
+                {{ 'ESCALATION_DRAWER.REJECTION_REASON_LABEL' | translate }}
+              </h3>
+              <div class="reason-card rejection-card">
+                <p class="reason-text">{{ escalation!.managerResponseReason }}</p>
+              </div>
+            </section>
+          }
+
+          <!-- Manager Actions Section -->
+          @if (canTakeAction()) {
+            <section class="info-section actions-section">
+              <h3 class="section-title">
+                <span class="section-icon">⚡</span>
+                {{ 'ESCALATION_DRAWER.MGR_ACTIONS' | translate }}
+              </h3>
+
+              <!-- Accept -->
+              <div class="action-group">
+                <div class="action-group-header">
+                  <h4 class="action-group-title accept-title">{{ 'ESCALATION_DRAWER.ACCEPT_BTN' | translate }}</h4>
+                  <p class="action-group-desc">{{ 'ESCALATION_DRAWER.ACCEPT_DESC' | translate }}</p>
+                </div>
+                <div class="checkbox-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" [ngModel]="acceptSetInProgress()" (ngModelChange)="acceptSetInProgress.set($event)">
+                    <span>{{ 'ESCALATION_DRAWER.ACCEPT_SET_IN_PROGRESS' | translate }}</span>
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" [ngModel]="acceptTakeOwnership()" (ngModelChange)="acceptTakeOwnership.set($event)">
+                    <span>{{ 'ESCALATION_DRAWER.ACCEPT_ASSIGN_SELF' | translate }}</span>
+                  </label>
+                </div>
+                <app-button
+                  variant="primary"
+                  (click)="handleAccept()"
+                  [disabled]="acceptLoading()"
+                  class="full-width"
+                >
+                  {{ acceptLoading() ? ('ESCALATION_DRAWER.PROCESSING' | translate) : ('ESCALATION_DRAWER.ACCEPT_BTN_DONE' | translate) }}
+                </app-button>
+              </div>
+
+              <!-- Reassign -->
+              <div class="action-group">
+                <div class="action-group-header">
+                  <h4 class="action-group-title reassign-title">{{ 'ESCALATION_DRAWER.REASSIGN_TITLE' | translate }}</h4>
+                  <p class="action-group-desc">{{ 'ESCALATION_DRAWER.REASSIGN_DESC' | translate }}</p>
+                </div>
+                <div class="select-group">
+                  <label class="field-label">{{ 'ESCALATION_DRAWER.REASSIGN_SELECT_AGENT' | translate: { team: escalation!.teamName || ('ESCALATION_DRAWER.TEAM_LABEL' | translate) } }}</label>
+                  <select
+                    class="form-control"
+                    [ngModel]="selectedReassignAgentId()"
+                    (ngModelChange)="selectedReassignAgentId.set($event)"
+                  >
+                    <option value="">{{ 'ESCALATION_DRAWER.REASSIGN_CHOOSE' | translate }}</option>
+                    @for (agent of teamAgents(); track agent.userId) {
+                      <option [value]="agent.userId">
+                        {{ getAgentName(agent) }}{{ !isAgentAvailable(agent) ? (' (' + ('ESCALATION_DRAWER.REASSIGN_OFFLINE' | translate) + ')') : '' }}
+                      </option>
+                    }
+                    @if (teamAgents().length === 0) {
+                      <option value="" disabled>{{ 'ESCALATION_DRAWER.REASSIGN_NO_AGENTS' | translate }}</option>
+                    }
+                  </select>
+                  @if (teamAgents().length === 0) {
+                    <p class="field-hint">{{ 'ESCALATION_DRAWER.REASSIGN_NO_AGENTS_AVAIL' | translate }}</p>
+                  }
+                </div>
+                <app-button
+                  variant="secondary"
+                  (click)="handleReassign()"
+                  [disabled]="!selectedReassignAgentId() || reassignLoading()"
+                  class="full-width"
+                >
+                  {{ reassignLoading() ? ('ESCALATION_DRAWER.REASSIGN_LOADING' | translate) : ('ESCALATION_DRAWER.REASSIGN_BTN' | translate) }}
+                </app-button>
+              </div>
+
+              <!-- Reject -->
+              <div class="action-group">
+                <div class="action-group-header">
+                  <h4 class="action-group-title reject-title">{{ 'ESCALATION_DRAWER.REJECT_TITLE' | translate }}</h4>
+                  <p class="action-group-desc">{{ 'ESCALATION_DRAWER.REJECT_DESC' | translate }}</p>
+                </div>
+                <div class="textarea-group">
+                  <label class="field-label required">{{ 'ESCALATION_DRAWER.REJECT_REASON_LABEL' | translate }}</label>
+                  <textarea
+                    class="form-control"
+                    rows="3"
+                    [ngModel]="rejectReason()"
+                    (ngModelChange)="rejectReason.set($event)"
+                    [placeholder]="'ESCALATION_DRAWER.REJECT_REASON_PH' | translate"
+                  ></textarea>
+                  @if (!rejectReason().trim()) {
+                    <p class="field-hint error-hint">{{ 'ESCALATION_DRAWER.REJECT_REASON_REQUIRED' | translate }}</p>
+                  }
+                </div>
+                <app-button
+                  variant="secondary"
+                  (click)="handleReject()"
+                  [disabled]="!rejectReason().trim() || rejectLoading()"
+                  class="full-width reject-btn"
+                >
+                  {{ rejectLoading() ? ('ESCALATION_DRAWER.REJECT_LOADING' | translate) : ('ESCALATION_DRAWER.REJECT_BTN' | translate) }}
+                </app-button>
+              </div>
+            </section>
+          }
+
+          <!-- Non-manager / Non-pending message -->
+          @if (!canTakeAction() && isManager) {
+            <section class="info-section">
+              <div class="info-card resolved-card">
+                <div class="resolved-icon">ℹ️</div>
+                <div>
+                  <h4 class="resolved-title">{{ 'ESCALATION_DRAWER.ALREADY_PROCESSED' | translate }}</h4>
+                  <p class="resolved-desc">
+                    {{ 'ESCALATION_DRAWER.ALREADY_PROCESSED_BY' | translate: { status: getStatusLabel(escalation!.status), date: formatDate(escalation!.updatedAt) } }}
+                  </p>
+                </div>
+              </div>
+            </section>
+          }
+
+          @if (!isManager) {
+            <section class="info-section">
+              <div class="info-card agent-card">
+                <div class="resolved-icon">👁️</div>
+                <div>
+                  <h4 class="resolved-title">{{ 'ESCALATION_DRAWER.REQUEST_SECTION_STATUS_INFO' | translate }}</h4>
+                  <p class="resolved-desc">
+                    {{ 'ESCALATION_DRAWER.REQUEST_SECTION_DETAIL' | translate: { status: getStatusLabel(escalation!.status) } }}
+                  </p>
+                </div>
+              </div>
+            </section>
+          }
+        </div>
+      } @else {
+        <div class="drawer-empty">
+          <p class="empty-hint">{{ 'ESCALATION_DRAWER.NOT_SELECTED' | translate }}</p>
+        </div>
+      }
+    </aside>
+  </div>
+}
