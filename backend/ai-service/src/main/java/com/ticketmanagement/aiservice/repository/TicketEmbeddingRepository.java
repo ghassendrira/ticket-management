@@ -12,16 +12,5 @@ import java.util.UUID;
 @Repository
 public interface TicketEmbeddingRepository extends JpaRepository<TicketEmbedding, UUID> {
 
-    @Query(value = """
-        SELECT 
-            te.ticket_id,
-            te.resolution_summary,
-            1 - (te.embedding <=> CAST(:embedding AS vector)) AS similarity
-        FROM ticket_embeddings te
-        JOIN tickets t ON t.id = te.ticket_id
-        WHERE t.status IN ('RESOLVED', 'CLOSED')
-        ORDER BY te.embedding <=> CAST(:embedding AS vector)
-        LIMIT 5
-        """, nativeQuery = true)
-    List<Object[]> findTop5SimilarResolvedTickets(@Param("embedding") String embedding);
+    List<TicketEmbedding> findAllByStatusIn(List<String> statuses);
 }

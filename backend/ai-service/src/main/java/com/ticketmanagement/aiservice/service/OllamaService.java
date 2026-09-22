@@ -267,14 +267,26 @@ public double[] estimatePriorityScores(String title, String description, String 
         }
 
         String raw = response.get("response").toString().trim();
-        // Nettoyage markdown si Qwen wrapper en ```json
-        raw = raw.replaceAll("(?s)^```json\\s*", "").replaceAll("(?s)\\s*```$", "").trim();
+        log.debug("Ollama priority raw response: {}", raw);
+        String cleanJson = raw.replaceAll("(?s)```(?:json)?", "")
+                .replaceAll("```", "")
+                .trim();
+        int objectStart = cleanJson.indexOf('{');
+        int objectEnd = cleanJson.lastIndexOf('}');
+        if (objectStart >= 0 && objectEnd > objectStart) {
+            cleanJson = cleanJson.substring(objectStart, objectEnd + 1);
+        }
 
-        // Parsing manuel simple (évite d'ajouter Jackson ObjectMapper si pas déjà là)
-        double modelScore = extractJsonInt(raw, "\"model_score\"");
-        double sentimentScore = extractJsonInt(raw, "\"sentiment_score\"");
-
-        return new double[]{modelScore, sentimentScore};
+        JsonNode root = objectMapper.readTree(cleanJson);
+        String priority = root.path("priority").asText("").trim().toUpperCase();
+        double score = switch (priority) {
+            case "CRITICAL" -> 95.0;
+            case "HIGH" -> 75.0;
+            case "LOW" -> 20.0;
+            case "MEDIUM" -> 50.0;
+            default -> throw new AiServiceException("Invalid priority returned by Ollama");
+        };
+        return new double[]{score, score};
 
     } catch (Exception e) {
         log.error("Priority estimation failed", e);
@@ -291,15 +303,18 @@ private String buildPriorityPrompt(String title, String description, String cate
         Ticket Description: %s
         Category: %s
 
-        Return exactly:
+                Return exactly:
         {
-          "model_score": <integer 0-100>,
-          "sentiment_score": <integer 0-100>
+                    "priority": "LOW | MEDIUM | HIGH | CRITICAL",
+                    "reason": "short reason"
         }
 
-        Scoring rules:
-        - model_score: business impact severity. 0=trivial, 100=critical outage affecting many users.
-        - sentiment_score: customer frustration and urgency. 0=calm, 100=extremely frustrated or urgent.
+                Rules:
+                - CRITICAL: security breach, hacked account, failed blocking payment, or service unavailable for many users.
+                - HIGH: explicit urgency (urgent, today, tomorrow), financial impact, customer blocked, or immediate business impact.
+                - MEDIUM: real support problem without strong urgency.
+                - LOW: simple non-blocking information request.
+                Use exactly one of LOW, MEDIUM, HIGH, CRITICAL.
         """.formatted(title, description != null ? description : "N/A", category != null ? category : "OTHER");
 }
 

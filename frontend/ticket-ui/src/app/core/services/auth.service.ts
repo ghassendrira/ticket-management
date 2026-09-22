@@ -1,209 +1,201 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, EMPTY, Observable, tap } from 'rxjs';
+import { tap } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
 import { AuthApiService } from './auth-api.service';
 import { TokenStorageService } from './token-storage.service';
-import { AssignmentService } from './assignment.service';
+import { AuthResponse } from '../../features/auth/models/auth-response.model';
+import { LoginRequest } from '../../features/auth/models/login-request.model';
+import { RegisterRequest } from '../../features/auth/models/register-request.model';
+import { User } from '../../features/auth/models/user.model';
 
-// --- TYPES ---
-export interface LoginRequest {
-  usernameOrEmail: string;
-  password: string;
-}
+export type { AuthResponse } from '../../features/auth/models/auth-response.model';
+export type { LoginRequest } from '../../features/auth/models/login-request.model';
+export type { RegisterRequest } from '../../features/auth/models/register-request.model';
 
 export interface ChangePasswordRequest {
-  username: string;
   currentPassword: string;
   newPassword: string;
+  username?: string;
 }
 
-export interface RegisterRequest {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
+export interface UserResponse extends User {}
+
+const ADMIN_TOKEN_KEY = 'rag-admin-token';
+
+function decodeJwtPayload(token: string): any | null {
+  try {
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
 }
 
-export interface UserResponse {
-  id: string;
-  username: string;
-  email: string;
-  role: 'ADMIN' | 'AGENT' | 'MANAGER';
-  fullName: string;
-  active: boolean;
-  mustChangePassword: boolean;
-  createdAt: string;
-}
-
-export interface AuthResponse {
-  accessToken: string;
-  refreshToken: string;
-  user: UserResponse;
-}
-
-interface AuthSuccessOptions {
-  navigate?: boolean;
-}
-
-// --- SERVICE ---
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  readonly currentUser = signal<UserResponse | null>(null);
-  readonly isAuthenticated = signal(false);
-  readonly authChecked = signal(false);
+  private readonly authCheckedState = signal<boolean>(false);
+  private readonly adminTokenState = signal<string | null>(
+    typeof localStorage !== 'undefined' ? localStorage.getItem(ADMIN_TOKEN_KEY) : null
+  );
+  private readonly mockUserState = signal<UserResponse | null>(null);
+
+  readonly authChecked = computed(() => this.authCheckedState());
+
+  readonly isAuthenticated = computed(() => {
+    const accessToken = this.tokenStorage.getAccessToken();
+    return !!accessToken;
+  });
+
+  readonly currentUser = computed<UserResponse | null>(() => {
+    const accessToken = this.tokenStorage.getAccessToken();
+    if (accessToken) {
+      const payload = decodeJwtPayload(accessToken);
+      if (payload) {
+        return {
+          id: payload.sub || payload.id || 'mock-id',
+          username: payload.username || payload.email || 'mock-user',
+          role: payload.role || 'AGENT',
+          fullName: payload.fullName || payload.name || 'Mock User'
+        } as UserResponse;
+      }
+    }
+    return this.mockUserState();
+  });
+
+  readonly isAdminAuthenticated = computed(() => !!this.adminTokenState() || this.isAuthenticated());
 
   constructor(
-    private authApi: AuthApiService,
-    private router: Router,
-    private tokenStorage: TokenStorageService,
-    private assignmentService: AssignmentService
+    private readonly authApi: AuthApiService,
+    private readonly tokenStorage: TokenStorageService,
+    private readonly router: Router
   ) {
-    const storedRefresh = this.tokenStorage.getRefreshToken();
-    if (storedRefresh) {
-      this.restoreSession(storedRefresh);
-    } else {
-      this.authChecked.set(true);
+    const token = this.tokenStorage.getAccessToken();
+    if (token) {
+      this.authCheckedState.set(true);
     }
   }
 
-  login(request: LoginRequest) {
+  login(email: string, password: string): Observable<AuthResponse>;
+  login(payload: LoginRequest | { email: string; password: string }): Observable<AuthResponse>;
+  login(
+    payloadOrEmail: LoginRequest | { email: string; password: string } | string,
+    password?: string
+  ): Observable<AuthResponse> {
+    let request: LoginRequest;
+    if (typeof payloadOrEmail === 'string') {
+      request = { username: payloadOrEmail, password: password as string };
+    } else if ('email' in payloadOrEmail && !('username' in payloadOrEmail)) {
+      request = { username: payloadOrEmail.email, password: payloadOrEmail.password };
+    } else {
+      request = payloadOrEmail as LoginRequest;
+    }
     return this.authApi.login(request).pipe(
-      tap((response) => {
-        this.handleAuthSuccess(response, { navigate: true });
-
-        if (response.user.role === 'AGENT') {
-          this.assignmentService.updateAgentStatus(response.user.id, true).subscribe({
-            error: (err: Error) => console.error('Failed to set online status:', err)
-          });
-        }
-      }),
-      catchError((error) => {
-        console.error('Login failed:', error);
-        throw error;
+      tap((res) => {
+        this.tokenStorage.setAccessToken(res.accessToken);
+        this.tokenStorage.setRefreshToken(res.refreshToken);
+        this.mockUserState.set(res.user as UserResponse);
+        this.authCheckedState.set(true);
       })
     );
   }
 
-  register(request: RegisterRequest) {
-    return this.authApi.register(request).pipe(
-      tap((response) => this.handleAuthSuccess(response, { navigate: true })),
-      catchError((error) => {
-        console.error('Register failed:', error);
-        throw error;
-      })
-    );
-  }
-
-  forgotPassword(email: string) {
-    return this.authApi.forgotPassword(email).pipe(
-      catchError((error) => {
-        console.error('Forgot password failed:', error);
-        throw error;
-      })
-    );
-  }
-
-  resetPassword(token: string, password: string) {
-    return this.authApi.resetPassword(token, password).pipe(
-      catchError((error) => {
-        console.error('Reset password failed:', error);
-        throw error;
-      })
-    );
-  }
-
-  changePassword(request: ChangePasswordRequest) {
-    return this.authApi.changePassword(request).pipe(
-      tap(() => {
-        const user = this.currentUser();
-        if (user) {
-          this.currentUser.set({ ...user, mustChangePassword: false });
-        }
-        this.router.navigate(['/dashboard']);
-      }),
-      catchError((error) => {
-        console.error('Change password failed:', error);
-        throw error;
+  register(data: RegisterRequest): Observable<AuthResponse> {
+    return this.authApi.register(data).pipe(
+      tap((res) => {
+        this.tokenStorage.setAccessToken(res.accessToken);
+        this.tokenStorage.setRefreshToken(res.refreshToken);
+        this.mockUserState.set(res.user as UserResponse);
+        this.authCheckedState.set(true);
       })
     );
   }
 
   logout(): void {
-    const user = this.currentUser();
-
-    if (user?.role === 'AGENT') {
-      this.assignmentService.updateAgentStatus(user.id, false).subscribe({
-        next: () => this.performLogout(),
-        error: () => this.performLogout()
-      });
-    } else {
-      this.performLogout();
-    }
-  }
-
-  private performLogout(): void {
     const refreshToken = this.tokenStorage.getRefreshToken();
     if (refreshToken) {
       this.authApi.logout(refreshToken).subscribe({
-        error: (err: Error) => console.error('Logout API call failed:', err),
+        error: () => {}
       });
     }
-
     this.tokenStorage.clearTokens();
-    this.currentUser.set(null);
-    this.isAuthenticated.set(false);
-    this.authChecked.set(true);
-    this.router.navigate(['/auth/login']);
+    this.mockUserState.set(null);
+    this.adminTokenState.set(null);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(ADMIN_TOKEN_KEY);
+    }
+    this.authCheckedState.set(false);
+    void this.router.navigate(['/login']);
   }
 
-  refreshAccessToken(token: string): Observable<AuthResponse> {
-    return this.authApi.refresh(token).pipe(
-      tap((response) => this.handleAuthSuccess(response, { navigate: false })),
-      catchError((error) => {
-        console.error('Token refresh failed:', error);
-        this.logout();
-        return EMPTY;
-      })
-    );
+  logoutAdmin(): void {
+    this.tokenStorage.clearTokens();
+    this.adminTokenState.set(null);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(ADMIN_TOKEN_KEY);
+    }
+    this.mockUserState.set(null);
+    this.authCheckedState.set(false);
+    void this.router.navigate(['/admin/login']);
   }
 
-  private restoreSession(refreshToken: string): void {
-    this.authApi.refresh(refreshToken).subscribe({
-      next: (response) => {
-        this.handleAuthSuccess(response, { navigate: false });
-        this.authChecked.set(true);
-
-        if (response.user.role === 'AGENT') {
-          this.assignmentService.updateAgentStatus(response.user.id, true).subscribe({
-            error: (err: Error) => console.error('Failed to restore online status:', err)
-          });
-        }
-      },
-      error: () => {
-        this.tokenStorage.clearTokens();
-        this.currentUser.set(null);
-        this.isAuthenticated.set(false);
-        this.authChecked.set(true);
-      },
+  loginAsAdmin(): void {
+    const mockAdminToken = 'mock-admin-token-' + Date.now();
+    this.adminTokenState.set(mockAdminToken);
+    this.tokenStorage.setAccessToken(mockAdminToken);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(ADMIN_TOKEN_KEY, mockAdminToken);
+    }
+    this.mockUserState.set({
+      id: 'admin-1',
+      username: 'admin',
+      role: 'ADMIN',
+      fullName: 'Administrator'
     });
+    this.authCheckedState.set(true);
   }
 
-  private handleAuthSuccess(response: AuthResponse, options: AuthSuccessOptions = {}): void {
-    const { navigate = false } = options;
+  getToken(): string | null {
+    const accessToken = this.tokenStorage.getAccessToken();
+    if (accessToken) return accessToken;
+    return this.adminTokenState();
+  }
 
-    this.tokenStorage.setAccessToken(response.accessToken);
-    this.tokenStorage.setRefreshToken(response.refreshToken);
-    this.currentUser.set(response.user);
-    this.isAuthenticated.set(true);
+  changePassword(data: ChangePasswordRequest): Observable<void> {
+    return this.authApi.changePassword(data);
+  }
 
-    if (!navigate) {
-      return;
+  forgotPassword(email: string): Observable<void> {
+    return this.authApi.forgotPassword(email);
+  }
+
+  resetPassword(token: string, newPassword: string): Observable<void> {
+    return this.authApi.resetPassword(token, newPassword);
+  }
+
+  updateProfile(data: Partial<UserResponse>): Observable<UserResponse> {
+    this.mockUserState.update((current) => (current ? { ...current, ...data } : null));
+    return of(this.mockUserState() as UserResponse);
+  }
+
+  getCurrentUser(): Observable<UserResponse> {
+    const user = this.currentUser();
+    if (user) {
+      return of(user);
     }
-
-    if (response.user.mustChangePassword) {
-      this.router.navigate(['/change-password']);
-    } else {
-      this.router.navigate(['/dashboard']);
-    }
+    return of({
+      id: 'mock-id',
+      username: 'mock-user',
+      role: 'AGENT',
+      fullName: 'Mock User'
+    });
   }
 }

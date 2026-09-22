@@ -4,7 +4,8 @@ import { catchError, throwError, tap } from 'rxjs';
 import { environment } from '../../../environments/environment.development';
 import { UserResponse } from './auth.service';
 
-const API_URL = `${environment.apiUrl}/api/users`;
+const API_URL = `${environment.ticketApiUrl}/users`;
+const AUTH_USERS_URL = `${environment.authApiUrl}/api/users`;
 
 export interface CreateUserRequest {
   fullName: string;
@@ -71,17 +72,17 @@ export class UserService {
   }
 
   createUser(request: CreateUserRequest) {
-    return this.http.post<CreateUserResponse>(API_URL, request)
+    return this.http.post<CreateUserResponse>(AUTH_USERS_URL, request)
       .pipe(catchError(this.handleError));
   }
 
   updateUser(id: string, request: UpdateUserRequest) {
-    return this.http.put<UserResponse>(`${API_URL}/${id}`, request)
+    return this.http.put<UserResponse>(`${AUTH_USERS_URL}/${id}`, request)
       .pipe(catchError(this.handleError));
   }
 
   toggleUserStatus(id: string, active: boolean) {
-    const url = `${API_URL}/${id}/status`;
+    const url = `${AUTH_USERS_URL}/${id}/status`;
     const body = { active };
     console.log('UserService.toggleUserStatus: sending request', { url, body });
     return this.http.patch<UserResponse>(url, body)

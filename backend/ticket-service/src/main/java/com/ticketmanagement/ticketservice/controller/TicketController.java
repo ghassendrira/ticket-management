@@ -4,10 +4,13 @@ import com.ticketmanagement.ticketservice.dto.*;
 import com.ticketmanagement.ticketservice.entity.Role;
 import com.ticketmanagement.ticketservice.exception.UnauthorizedTicketActionException;
 import com.ticketmanagement.ticketservice.service.TicketService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import com.ticketmanagement.ticketservice.entity.TicketStatus;
 import java.util.List;
@@ -23,29 +26,53 @@ public class TicketController {
     private static final Set<Role> ALLOWED_CREATE_ROLES = Set.of(Role.ADMIN, Role.MANAGER, Role.AGENT);
     private static final Set<Role> ALLOWED_ASSIGN_ROLES = Set.of(Role.ADMIN, Role.MANAGER);
 
+    private static final UUID SYSTEM_RAG_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    private static final String INTERNAL_HEADER = "X-Internal-Service-Key";
+
+    @Value("${internal.service-secret}")
+    private String internalServiceSecret;
+
     @PostMapping
     public ResponseEntity<TicketResponseDTO> createTicket(
             @Valid @RequestBody TicketRequestDTO dto,
-            @RequestHeader("X-User-Id") String userIdHeader,
-            @RequestHeader("X-User-Role") String roleHeader) {
-        Role role = Role.valueOf(roleHeader);
-        if (!ALLOWED_CREATE_ROLES.contains(role)) {
-            throw new UnauthorizedTicketActionException("Not authorized to create tickets");
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
+            HttpServletRequest request) {
+        boolean internal = isInternalAuthenticated(request);
+        UUID userId;
+        if (internal) {
+            userId = SYSTEM_RAG_USER_ID;
+        } else {
+            requireHeaders(userIdHeader, roleHeader);
+            Role role = Role.valueOf(roleHeader);
+            if (!ALLOWED_CREATE_ROLES.contains(role)) {
+                throw new UnauthorizedTicketActionException("Not authorized to create tickets");
+            }
+            userId = UUID.fromString(userIdHeader);
         }
-        UUID userId = UUID.fromString(userIdHeader);
         TicketResponseDTO response = ticketService.createTicket(dto, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping
     public ResponseEntity<List<TicketResponseDTO>> getAllTickets(
-            @RequestHeader("X-User-Id") String userIdHeader,
-            @RequestHeader("X-User-Role") String roleHeader) {
-        Role role = Role.valueOf(roleHeader);
-        if (!ALLOWED_CREATE_ROLES.contains(role)) {
-            throw new UnauthorizedTicketActionException("Not authorized to view tickets");
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
+            HttpServletRequest request) {
+        boolean internal = isInternalAuthenticated(request);
+        UUID userId;
+        Role role;
+        if (internal) {
+            userId = SYSTEM_RAG_USER_ID;
+            role = Role.ADMIN;
+        } else {
+            requireHeaders(userIdHeader, roleHeader);
+            role = Role.valueOf(roleHeader);
+            if (!ALLOWED_CREATE_ROLES.contains(role)) {
+                throw new UnauthorizedTicketActionException("Not authorized to view tickets");
+            }
+            userId = UUID.fromString(userIdHeader);
         }
-        UUID userId = UUID.fromString(userIdHeader);
         List<TicketResponseDTO> tickets = ticketService.getAllTickets(userId, role);
         return ResponseEntity.ok(tickets);
     }
@@ -53,11 +80,16 @@ public class TicketController {
     @GetMapping("/{id}")
     public ResponseEntity<TicketDetailResponseDTO> getTicketById(
             @PathVariable UUID id,
-            @RequestHeader("X-User-Id") String userIdHeader,
-            @RequestHeader("X-User-Role") String roleHeader) {
-        Role role = Role.valueOf(roleHeader);
-        if (!ALLOWED_CREATE_ROLES.contains(role)) {
-            throw new UnauthorizedTicketActionException("Not authorized to view this ticket");
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
+            HttpServletRequest request) {
+        boolean internal = isInternalAuthenticated(request);
+        if (!internal) {
+            requireHeaders(userIdHeader, roleHeader);
+            Role role = Role.valueOf(roleHeader);
+            if (!ALLOWED_CREATE_ROLES.contains(role)) {
+                throw new UnauthorizedTicketActionException("Not authorized to view this ticket");
+            }
         }
         TicketDetailResponseDTO ticket = ticketService.getTicketById(id);
         return ResponseEntity.ok(ticket);
@@ -156,5 +188,16 @@ public ResponseEntity<Long> countTickets(
         UUID userId = UUID.fromString(userIdHeader);
         ticketService.requestEscalation(id, dto.getReason(), userId);
         return ResponseEntity.ok().build();
+    }
+
+    private boolean isInternalAuthenticated(HttpServletRequest request) {
+        String header = request.getHeader(INTERNAL_HEADER);
+        return StringUtils.hasText(header) && header.equals(internalServiceSecret);
+    }
+
+    private void requireHeaders(String userIdHeader, String roleHeader) {
+        if (!StringUtils.hasText(userIdHeader) || !StringUtils.hasText(roleHeader)) {
+            throw new UnauthorizedTicketActionException("Missing authentication headers");
+        }
     }
 }

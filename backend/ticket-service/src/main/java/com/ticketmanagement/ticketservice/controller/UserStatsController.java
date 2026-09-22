@@ -38,6 +38,81 @@ public class UserStatsController {
     private final TicketRepository ticketRepository;
     private final TicketHistoryRepository ticketHistoryRepository;
 
+    @GetMapping
+    public ResponseEntity<List<Map<String, Object>>> getUsers(
+            @RequestParam(value = "search", required = false) String search,
+            @RequestParam(value = "role", required = false) String role,
+            @RequestParam(value = "active", required = false) Boolean active,
+            @RequestHeader("X-User-Id") String callerId,
+            @RequestHeader("X-User-Role") String callerRole
+    ) {
+        try {
+            List<UserSummaryDTO> users;
+            if (role != null && !role.isBlank()) {
+                users = authServiceClient.getUsersByRole(role);
+            } else {
+                users = authServiceClient.getUsersByRole("AGENT");
+                List<UserSummaryDTO> managers = authServiceClient.getUsersByRole("MANAGER");
+                List<UserSummaryDTO> admins = authServiceClient.getUsersByRole("ADMIN");
+                Set<UUID> seen = new HashSet<>();
+                List<UserSummaryDTO> all = new ArrayList<>();
+                for (UserSummaryDTO u : users) { if (u.getId() != null && seen.add(u.getId())) all.add(u); }
+                for (UserSummaryDTO u : managers) { if (u.getId() != null && seen.add(u.getId())) all.add(u); }
+                for (UserSummaryDTO u : admins) { if (u.getId() != null && seen.add(u.getId())) all.add(u); }
+                users = all;
+            }
+
+            if (search != null && !search.isBlank()) {
+                String lower = search.toLowerCase();
+                users = users.stream()
+                        .filter(u -> (u.getFullName() != null && u.getFullName().toLowerCase().contains(lower))
+                                || (u.getEmail() != null && u.getEmail().toLowerCase().contains(lower)))
+                        .collect(Collectors.toList());
+            }
+
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (UserSummaryDTO u : users) {
+                Map<String, Object> map = new LinkedHashMap<>();
+                map.put("id", u.getId() != null ? u.getId().toString() : null);
+                map.put("fullName", u.getFullName());
+                map.put("email", u.getEmail());
+                map.put("role", u.getRole());
+                map.put("active", u.getActive());
+                map.put("createdAt", u.getCreatedAt());
+                result.add(map);
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Failed to fetch users: {}", e.getMessage(), e);
+            return ResponseEntity.ok(List.of());
+        }
+    }
+
+    @GetMapping("/{userId}")
+    public ResponseEntity<Map<String, Object>> getUserById(
+            @PathVariable String userId,
+            @RequestHeader("X-User-Id") String callerId,
+            @RequestHeader("X-User-Role") String callerRole
+    ) {
+        try {
+            UUID uid = UUID.fromString(userId);
+            UserSummaryDTO user = authServiceClient.getUserById(uid);
+            if (user == null) {
+                return ResponseEntity.notFound().build();
+            }
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("id", user.getId() != null ? user.getId().toString() : null);
+            map.put("fullName", user.getFullName());
+            map.put("email", user.getEmail());
+            map.put("role", user.getRole());
+            map.put("active", user.getActive());
+            map.put("createdAt", user.getCreatedAt());
+            return ResponseEntity.ok(map);
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @GetMapping("/{userId}/details")
     public ResponseEntity<UserDetailsResponse> getUserDetails(
             @PathVariable String userId,

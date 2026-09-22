@@ -1,0 +1,20 @@
+[
+  {
+    "id": "eval-001-password-reset",
+    "question": "How can I reset my password?",
+    "question_fr": "Comment réinitialiser mon mot de passe ?",
+    "expectsAnswered": true,
+    "expectedSection": "Procédure de réinitialisation",
+    "expectedKeywords": ["mot de passe oublié", "lien", "email", "réinitialisation"],
+    "expectedSourcesContain": "guide-reinitialisation-mot-de-passe"
+  },
+  {
+    "id": "eval-002-ceo-private-info",
+    "question": "What is the CEO's personal phone number?",
+    "question_fr": "Quel est le numéro de téléphone personnel du PDG ?",
+    "expectsAnswered": false,
+    "expectedSection": null,
+    "expectedKeywords": [],
+    "note": "This information should NOT be in the knowledge base."
+  }
+]

@@ -20,9 +20,9 @@ public class TicketEmbedding {
     @Column(name = "status", length = 50)
     private String status;   // NEW FIELD
 
-    @Column(name = "embedding", columnDefinition = "vector(768)", nullable = false)
-    @JdbcTypeCode(SqlTypes.VECTOR)
-    private float[] embedding;
+    @Lob
+    @Column(name = "embedding", nullable = false, columnDefinition = "bytea")
+    private byte[] embeddingBytes;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -52,8 +52,29 @@ public class TicketEmbedding {
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
 
-    public float[] getEmbedding() { return embedding; }
-    public void setEmbedding(float[] embedding) { this.embedding = embedding; }
+    public byte[] getEmbeddingBytes() { return embeddingBytes; }
+    public void setEmbeddingBytes(byte[] embeddingBytes) { this.embeddingBytes = embeddingBytes; }
+
+    public float[] getEmbedding() {
+        if (embeddingBytes == null) return null;
+        java.nio.ByteBuffer buffer = java.nio.ByteBuffer.wrap(embeddingBytes);
+        float[] result = new float[embeddingBytes.length / 4];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = buffer.getFloat();
+        }
+        return result;
+    }
+    public void setEmbedding(float[] embedding) {
+        if (embedding == null) {
+            this.embeddingBytes = null;
+            return;
+        }
+        java.nio.ByteBuffer buffer = java.nio.ByteBuffer.allocate(embedding.length * 4);
+        for (float v : embedding) {
+            buffer.putFloat(v);
+        }
+        this.embeddingBytes = buffer.array();
+    }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

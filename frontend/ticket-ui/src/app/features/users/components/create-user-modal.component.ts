@@ -274,19 +274,38 @@ export class CreateUserModalComponent {
     this.userService.createUser(this.createUserForm.value as CreateUserRequest).subscribe({
       next: response => {
         if (response.emailSent) {
-          this.successMessage.set(`User created - an email with login instructions was sent to ${response.user.email}`);
+          this.successMessage.set(`User "${response.user.username}" created successfully! Login instructions sent to ${response.user.email}`);
           setTimeout(() => {
             this.userCreated.emit();
             this.onClose();
-          }, 2000);
+          }, 3000);
         } else {
-          this.tempPasswordMessage.set('User created but email failed');
+          this.tempPasswordMessage.set('User created but email could not be sent. Please copy the temporary password below.');
           this.tempPassword.set(response.temporaryPassword!);
         }
       },
       error: err => {
         console.error('Failed to create user:', err);
-        this.errorMessage.set(err.error?.message || 'Failed to create user');
+        let errorMessage = 'Failed to create user';
+        if (err.error) {
+          if (typeof err.error === 'string') {
+            errorMessage = err.error;
+          } else if (err.error.message) {
+            errorMessage = err.error.message;
+          } else if (err.error.error) {
+            errorMessage = err.error.error;
+          }
+        } else if (err.message) {
+          errorMessage = err.message;
+        }
+        if (err.status === 0) {
+          errorMessage = 'Cannot connect to server. Please check your connection.';
+        } else if (err.status === 403) {
+          errorMessage = 'Access denied. You do not have permission to create users.';
+        } else if (err.status === 401) {
+          errorMessage = 'Authentication required. Please log in again.';
+        }
+        this.errorMessage.set(errorMessage);
       },
       complete: () => {
         this.loading.set(false);

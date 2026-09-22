@@ -9,7 +9,9 @@
 
 # Env & secrets
 **/.env
+**/*.env
 **/application-local.yml
+**/application-local.*
 **/environment.development.ts
 
 # IDE
@@ -23,3 +25,13 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Python
+**/__pycache__/
+*.py[cod]
+
+# Runtime uploads
+**/uploads/
+
+# Local runtime data
+*.db

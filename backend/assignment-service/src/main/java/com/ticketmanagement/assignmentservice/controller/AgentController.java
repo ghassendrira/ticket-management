@@ -1,5 +1,6 @@
 package com.ticketmanagement.assignmentservice.controller;
 
+import com.ticketmanagement.assignmentservice.client.NotificationClient;
 import com.ticketmanagement.assignmentservice.dto.*;
 import com.ticketmanagement.assignmentservice.exception.ValidationException;
 import com.ticketmanagement.assignmentservice.service.AgentProfileService;
@@ -17,9 +18,11 @@ import java.util.UUID;
 public class AgentController {
 
     private final AgentProfileService agentProfileService;
+    private final NotificationClient notificationClient;
 
-    public AgentController(AgentProfileService agentProfileService) {
+    public AgentController(AgentProfileService agentProfileService, NotificationClient notificationClient) {
         this.agentProfileService = agentProfileService;
+        this.notificationClient = notificationClient;
     }
 
     @GetMapping
@@ -64,8 +67,22 @@ public ResponseEntity<AgentProfileResponse> updateStatus(
     @PostMapping("/{id}/skills")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     public ResponseEntity<AgentProfileResponse> addSkill(@PathVariable UUID id,
-                                                                 @Valid @RequestBody AgentSkillRequest request) {
-        return ResponseEntity.ok(agentProfileService.addSkill(id, request));
+                                                                  @Valid @RequestBody AgentSkillRequest request) {
+        AgentProfileResponse response = agentProfileService.addSkill(id, request);
+
+        try {
+            CreateNotificationRequestDTO notificationRequest = new CreateNotificationRequestDTO();
+            notificationRequest.setUserId(UUID.fromString(response.getUserId()));
+            notificationRequest.setTitle("New Skill Added");
+            notificationRequest.setMessage("A new skill '" + request.getSkillName() + "' has been added to your profile.");
+            notificationRequest.setType(NotificationType.SKILL_ADDED);
+            notificationClient.createNotification(notificationRequest);
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(AgentController.class)
+                .warn("Failed to send skill notification: {}", e.getMessage());
+        }
+
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}/skills/{skillId}")

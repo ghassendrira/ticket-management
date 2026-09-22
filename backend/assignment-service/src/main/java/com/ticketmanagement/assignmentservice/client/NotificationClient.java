@@ -7,28 +7,47 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
 @Component
 @Slf4j
 public class NotificationClient {
 
     private final RestClient restClient;
+    private final String internalServiceSecret;
 
     public NotificationClient(
-            @Value("${notification.service.url}") String notificationServiceUrl,
+            @Value("${ticket.service.url:http://localhost:8081}") String ticketServiceUrl,
             @Value("${internal.service-secret}") String internalServiceSecret
     ) {
+        this.internalServiceSecret = internalServiceSecret;
         this.restClient = RestClient.builder()
-                .baseUrl(notificationServiceUrl)
+                .baseUrl(ticketServiceUrl)
                 .defaultHeader("X-Internal-Service-Key", internalServiceSecret)
                 .build();
     }
 
     public void createNotification(CreateNotificationRequestDTO request) {
         try {
-            log.info("AssignmentService.NotificationClient.createNotification -> POST /internal/notifications payload={}", request);
+            log.info("AssignmentService.NotificationClient.createNotification -> POST /api/notifications/internal/create payload={}", request);
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("userId", request.getUserId().toString());
+            payload.put("title", request.getTitle());
+            payload.put("message", request.getMessage());
+            payload.put("type", request.getType().name());
+            if (request.getTicketId() != null) {
+                payload.put("ticketId", request.getTicketId().toString());
+            }
+            if (request.getTeamId() != null) {
+                payload.put("teamId", request.getTeamId().toString());
+            }
+
             restClient.post()
-                    .uri("/internal/notifications")
-                    .body(request)
+                    .uri("/api/notifications/internal/create")
+                    .body(payload)
                     .retrieve()
                     .toBodilessEntity();
             log.info("Notification created successfully for user {}", request.getUserId());

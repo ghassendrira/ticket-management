@@ -1,0 +1,40 @@
+Guide de Réinitialisation de Mot de Passe
+==========================================
+
+Section 1: Introduction
+------------------------
+Ce document décrit la procédure officielle pour réinitialiser le mot de passe de votre compte client. Si vous rencontrez des difficultés pour vous connecter, suivez attentivement les étapes ci-dessous.
+
+Section 2: Procédure de réinitialisation
+----------------------------------------
+Pour réinitialiser votre mot de passe, veuillez suivre ces étapes:
+
+1. Accédez à la page de connexion de notre portail client.
+2. Cliquez sur le lien "Mot de passe oublié ?" situé sous le formulaire de connexion.
+3. Saisissez l'adresse email associée à votre compte.
+4. Cliquez sur le bouton "Envoyer le lien de réinitialisation".
+
+Section 3: Réception et validité du lien
+----------------------------------------
+Après avoir soumis votre demande:
+- Un email contenant un lien de réinitialisation unique vous sera envoyé sous 5 minutes maximum.
+- Ce lien est valable pendant 15 minutes à compter de son envoi.
+- Si vous ne recevez pas l'email, vérifiez votre dossier "Spam" ou "Courriers indésirables".
+- Vous pouvez demander un nouveau lien toutes les 30 minutes au maximum.
+
+Section 4: Définition du nouveau mot de passe
+----------------------------------------------
+Lorsque vous cliquez sur le lien reçu:
+1. Vous serez redirigé vers une page sécurisée de réinitialisation.
+2. Saisissez votre nouveau mot de passe dans les deux champs prévus à cet effet.
+3. Le nouveau mot de passe doit contenir au moins 12 caractères, inclure une majuscule, une minuscule, un chiffre et un caractère spécial.
+4. Cliquez sur "Confirmer le nouveau mot de passe".
+5. Un message de confirmation apparaîtra une fois l'opération réussie.
+
+Section 5: Dépannage
+--------------------
+Si malgré ces étapes vous ne parvenez pas à réinitialiser votre mot de passe:
+- Vérifiez que vous n'avez pas demandé plusieurs liens (seul le dernier est valide).
+- Effacez le cache et les cookies de votre navigateur, puis réessayez.
+- Si vous avez saisi une mauvaise adresse email, recommencez l'étape 2 avec la bonne adresse.
+- Si après 30 minutes vous n'avez toujours rien reçu, contactez le support client.

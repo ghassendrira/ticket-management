@@ -61,8 +61,8 @@ interface ActivityDisplay {
           <div class="header-main">
             <span class="header-badge">{{ 'AGENT_TEAM.PAGE_BADGE' | translate }}</span>
             <h1 class="header-title">{{ 'AGENT_TEAM.MY_TEAM' | translate }}</h1>
-            @if (selectedTeam() && selectedTeam()!.managerName) {
-              <p class="manager-line">{{ 'Manager' | translate }}: <b>{{ selectedTeam()!.managerName }}</b></p>
+            @if (selectedTeam() && selectedTeam()?.managerName) {
+              <p class="manager-line">{{ 'Manager' | translate }}: <b>{{ selectedTeam()?.managerName }}</b></p>
             }
           </div>
 
@@ -71,20 +71,20 @@ interface ActivityDisplay {
               <div class="shimmer-line w-40"></div>
               <div class="shimmer-line w-60"></div>
             </div>
-          } @else if (!selectedTeam()) {
+          } @else if (selectedTeam()) {
               <div class="no-team-state">
               <div class="no-team-icon">👥</div>
-              <p class="no-team-text">{{ 'AGENT_TEAM.NO_TEAM' | translate }}</p>
+              <p class="no-team-text">{{ 'AGENT_TEAM.MY_TEAM' | translate }}</p>
               <div class="info-item">
                 <span class="info-label">{{ 'AGENT_TEAM.MANAGER' | translate }}</span>
                 <span class="info-value">
-                  <span class="manager-avatar">{{ (selectedTeam()!.managerName || 'M').charAt(0) }}</span>
-                  {{ selectedTeam()!.managerName || ('AGENT_TEAM.NO_MANAGER' | translate) }}
+                  <span class="manager-avatar">{{ (selectedTeam()?.managerName || 'M').charAt(0) }}</span>
+                  {{ selectedTeam()?.managerName || ('AGENT_TEAM.NO_MANAGER' | translate) }}
                 </span>
               </div>
               <div class="info-item">
                 <span class="info-label">{{ 'AGENT_TEAM.AGENTS' | translate }}</span>
-                <span class="info-value pill">{{ selectedTeam()!.agentCount }}</span>
+                <span class="info-value pill">{{ selectedTeam()?.agentCount || 0 }}</span>
               </div>
               <div class="info-item">
                 <span class="info-label">{{ 'AGENT_TEAM.OPEN_TICKETS' | translate }}</span>
@@ -106,6 +106,11 @@ interface ActivityDisplay {
                 </select>
               </div>
             }
+          } @else {
+              <div class="no-team-state">
+              <div class="no-team-icon">👥</div>
+              <p class="no-team-text">{{ 'AGENT_TEAM.NO_TEAM' | translate }}</p>
+            </div>
           }
         </div>
       </section>

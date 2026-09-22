@@ -2,23 +2,25 @@ spring:
   application:
     name: assignment-service
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/assignment_db}
-    username: ${DB_USERNAME:ticket_admin}
-    password: ${DB_PASSWORD:POSTGRES_PASSWORD}
+    url: jdbc:postgresql://localhost:5432/assignment_db
+    username: ticket_admin
+    password: ticket_admin
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
       hibernate:
         format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
 server:
   port: ${SERVER_PORT:8083}
 
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4300}
 
 jwt:
   secret: ${JWT_SECRET:dGhpc0lzQVZlcnlMb25nQW5kUmFuZG9tU2VjcmV0S2V5Rm9yRGV2ZWxvcG1lbnRPbmx5MTIzNDU2Nzg5MA==}
@@ -32,3 +34,7 @@ notification:
 
 internal:
   service-secret: ${INTERNAL_SERVICE_SECRET:my-super-secret-internal-key-for-service-to-service-communication-only}
+
+ticket:
+  service:
+    url: ${TICKET_SERVICE_URL:http://localhost:8081}

@@ -12,7 +12,7 @@ export const roleGuard = (allowedRoles: Array<'ADMIN' | 'AGENT' | 'MANAGER'>): C
       return router.parseUrl('/login');
     }
 
-    if (!allowedRoles.includes(user.role)) {
+    if (!allowedRoles.includes(user.role as 'ADMIN' | 'AGENT' | 'MANAGER')) {
       return router.parseUrl('/dashboard');
     }
 

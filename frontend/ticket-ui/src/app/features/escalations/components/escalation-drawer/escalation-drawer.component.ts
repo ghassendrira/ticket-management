@@ -3,14 +3,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
-import {
-  TicketService,
-  EscalationResponse,
-  EscalationStatus,
-  Priority,
-  TicketStatus
-} from '../../../../core/services/ticket.service';
 import { AssignmentService, AgentProfileResponse } from '../../../../core/services/assignment.service';
+import { EscalationService, Escalation } from '../../../../core/services/escalation.service';
+import { mapEscalationStatus } from '../../../../models/escalation.model';
 import { ButtonComponent } from '../../../../shared/components/button/button.component';
 import { AlertComponent } from '../../../../shared/components/alert/alert.component';
 import { firstValueFrom } from 'rxjs';
@@ -29,13 +24,13 @@ import { firstValueFrom } from 'rxjs';
 })
 export class EscalationDrawerComponent implements OnInit, OnChanges {
   @Input() open = false;
-  @Input() escalation: EscalationResponse | null = null;
+  @Input() escalation: Escalation | null = null;
   @Input() isManager = false;
   @Output() close = new EventEmitter<void>();
   @Output() updated = new EventEmitter<void>();
 
   private destroyRef = inject(DestroyRef);
-  private ticketService = inject(TicketService);
+  private escalationService = inject(EscalationService);
   private assignmentService = inject(AssignmentService);
   private router = inject(Router);
   private translateService = inject(TranslateService);
@@ -52,7 +47,7 @@ export class EscalationDrawerComponent implements OnInit, OnChanges {
   actionError = signal<string | null>(null);
   actionSuccess = signal<string | null>(null);
 
-  isPending = computed(() => this.escalation?.status === 'PENDING');
+  isPending = computed(() => this.escalation ? (this.escalation.status === 'SUBMITTED' || this.escalation.status === 'PENDING') : false);
   canTakeAction = computed(() => this.isManager && this.isPending());
 
   ngOnInit(): void {
@@ -62,11 +57,7 @@ export class EscalationDrawerComponent implements OnInit, OnChanges {
   ngOnChanges() {
     if (this.open) {
       this.resetActionState();
-      if (this.isManager && this.escalation?.teamId) {
-        this.loadTeamAgents(this.escalation.teamId);
-      } else {
-        this.teamAgents.set([]);
-      }
+      this.teamAgents.set([]);
     }
   }
 
@@ -101,10 +92,9 @@ export class EscalationDrawerComponent implements OnInit, OnChanges {
     this.actionError.set(null);
     this.actionSuccess.set(null);
 
-    this.ticketService.acceptEscalation(
+    this.escalationService.acceptEscalation(
       this.escalation.id,
-      this.acceptSetInProgress(),
-      this.acceptTakeOwnership()
+      { setInProgress: this.acceptSetInProgress(), takeOwnership: this.acceptTakeOwnership() }
     ).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.acceptLoading.set(false);
@@ -128,9 +118,9 @@ export class EscalationDrawerComponent implements OnInit, OnChanges {
     this.actionError.set(null);
     this.actionSuccess.set(null);
 
-    this.ticketService.rejectEscalation(
+    this.escalationService.rejectEscalation(
       this.escalation.id,
-      this.rejectReason().trim()
+      { reason: this.rejectReason().trim() }
     ).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.rejectLoading.set(false);
@@ -154,9 +144,9 @@ export class EscalationDrawerComponent implements OnInit, OnChanges {
     this.actionError.set(null);
     this.actionSuccess.set(null);
 
-    this.ticketService.reassignEscalation(
+    this.escalationService.reassignEscalation(
       this.escalation.id,
-      this.selectedReassignAgentId()
+      { agentId: this.selectedReassignAgentId() }
     ).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.reassignLoading.set(false);
@@ -175,16 +165,18 @@ export class EscalationDrawerComponent implements OnInit, OnChanges {
   }
 
   goToTicket() {
-    if (!this.escalation) return;
-    this.router.navigate(['/tickets', this.escalation.ticketId]);
+    const ticketId = this.escalation?.ticketId;
+    if (!ticketId) return;
+    this.router.navigate(['/tickets', ticketId]);
     this.close.emit();
   }
 
-  getStatusLabel(status: EscalationStatus): string {
-    const key = 'STATUS.' + status;
+  getStatusLabel(status: string): string {
+    const displayStatus = mapEscalationStatus(status);
+    const key = 'STATUS.' + displayStatus;
     const translated = this.translateService.instant(key);
     if (translated !== key) return translated;
-    const labels: Record<EscalationStatus, string> = {
+    const labels: Record<string, string> = {
       PENDING: 'Pending',
       ACCEPTED: 'Accepted',
       REJECTED: 'Rejected',
@@ -192,34 +184,35 @@ export class EscalationDrawerComponent implements OnInit, OnChanges {
       CANCELLED: 'Cancelled',
       RESOLVED: 'Resolved'
     };
-    return labels[status] || status;
+    return labels[displayStatus] || displayStatus;
   }
 
-  getPriorityLabel(priority?: Priority): string {
+  getPriorityLabel(priority?: string): string {
     if (!priority) return this.translateService.instant('LIST.EMPTY_UNTITLED');
     const key = 'PRIORITY.' + priority;
     const translated = this.translateService.instant(key);
     if (translated !== key) return translated;
-    const labels: Record<Priority, string> = {
-      LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High', CRITICAL: 'Critical'
+    const labels: Record<string, string> = {
+      BASSE: 'Low', MOYENNE: 'Medium', HAUTE: 'High'
     };
-    return labels[priority];
+    return labels[priority] || priority;
   }
 
-  getTicketStatusLabel(status?: TicketStatus): string {
+  getTicketStatusLabel(status?: string): string {
     if (!status) return this.translateService.instant('LIST.EMPTY_UNTITLED');
     const key = 'STATUS.' + status;
     const translated = this.translateService.instant(key);
     if (translated !== key) return translated;
-    const labels: Record<TicketStatus, string> = {
+    const labels: Record<string, string> = {
       NEW: 'New', ASSIGNED: 'Assigned', IN_PROGRESS: 'In Progress',
       PENDING: 'Pending', RESOLVED: 'Resolved', CLOSED: 'Closed',
       REOPENED: 'Reopened', CANCELLED: 'Cancelled'
     };
-    return labels[status];
+    return labels[status] || status;
   }
 
-  formatDate(dateStr: string): string {
+  formatDate(dateStr: string | undefined): string {
+    if (!dateStr) return 'N/A';
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-US', {
       year: 'numeric', month: 'short', day: 'numeric',

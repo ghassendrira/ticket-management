@@ -12,7 +12,7 @@ export const roleGuard = (allowedRoles: ('ADMIN' | 'AGENT' | 'MANAGER')[]): CanA
     }
 
     const currentUser = authService.currentUser();
-    if (currentUser && allowedRoles.includes(currentUser.role)) {
+    if (currentUser && (allowedRoles as string[]).includes(currentUser.role)) {
       return true;
     }
 

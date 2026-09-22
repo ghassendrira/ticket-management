@@ -22,8 +22,7 @@ public class TicketAnalysisService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final Set<String> VALID_CATEGORIES = Set.of(
-        "ACCOUNT_ACCESS", "BILLING", "TECHNICAL", "ORDER", 
-        "DELIVERY", "SECURITY", "INFORMATION", "OTHER"
+        "ACCOUNT_ACCESS", "BILLING", "TECHNICAL", "ORDER", "DELIVERY", "SECURITY", "INFORMATION"
     );
     private static final Set<String> VALID_SENTIMENTS = Set.of(
         "SATISFIED", "NEUTRAL", "CONFUSED", "FRUSTRATED", "DISSATISFIED"
@@ -39,18 +38,25 @@ public class TicketAnalysisService {
             log.debug("Réponse brute Gemini: {}", geminiJson);
 
             // Nettoie les ```json ... ``` et répare les JSON tronqués
-            String cleanJson = geminiJson.replaceAll("(?s)^```json\\s*", "")
-                                         .replaceAll("(?s)\\s*```$", "")
+            String cleanJson = geminiJson.replaceAll("(?s)```(?:json)?", "")
+                                         .replaceAll("```", "")
                                          .trim();
+            int objectStart = cleanJson.indexOf('{');
+            int objectEnd = cleanJson.lastIndexOf('}');
+            if (objectStart >= 0 && objectEnd > objectStart) {
+                cleanJson = cleanJson.substring(objectStart, objectEnd + 1);
+            }
             cleanJson = repairJson(cleanJson);  // ← AJOUT : répare les } manquants
 
             JsonNode root = objectMapper.readTree(cleanJson);
 
-            String rawCategory = getTextOrDefault(root, "category", "OTHER").trim().toUpperCase()
+            String rawCategory = getTextOrDefault(root, "category", "INFORMATION").trim().toUpperCase()
                 .replace(" ", "_").replace("-", "_");
-            String category = VALID_CATEGORIES.contains(rawCategory) ? rawCategory : "OTHER";
+            if (rawCategory.equals("ACCOUNT")) rawCategory = "ACCOUNT_ACCESS";
+            String category = VALID_CATEGORIES.contains(rawCategory) ? rawCategory : "INFORMATION";
             
-            double catConf = getDoubleOrDefault(root, "categoryConfidence", 0.5);
+            double catConf = getDoubleOrDefault(root, "confidence",
+                getDoubleOrDefault(root, "categoryConfidence", 0.5));
 
             String rawSentiment = getTextOrDefault(root, "sentiment", "NEUTRAL").trim().toUpperCase()
                 .replace(" ", "_");
@@ -71,7 +77,7 @@ public class TicketAnalysisService {
                 new AiExplanation(catReason, sentReason));
 
         } catch (Exception e) {
-            log.error("Erreur analyse ticket {}. JSON brut: {}", ticketId, geminiJson, e);
+            log.error("Erreur analyse ticket {}: {}", ticketId, e.getMessage());
             return fallbackAnalyze(ticketId, title, description, e);
         }
     }
@@ -79,9 +85,9 @@ public class TicketAnalysisService {
     public AnalysisResult fallbackAnalyze(UUID ticketId, String title, String description, Exception ex) {
         log.warn("Fallback Gemini pour ticket {}: {}", ticketId, ex.getMessage());
         return new AnalysisResult(
-            ticketId, "OTHER", 0.5, "NEUTRAL", 0.5,
+            ticketId, "INFORMATION", 0.1, "NEUTRAL", 0.5,
             new AiExplanation(
-                "Service IA indisponible ou reponse invalide. Valeurs par defaut.",
+                "Service IA indisponible ou reponse invalide. Valeur par defaut.",
                 "Service IA indisponible ou reponse invalide. Valeurs par defaut."
             )
         );
@@ -89,29 +95,53 @@ public class TicketAnalysisService {
 
     private String buildPrompt(String title, String description) {
         return """
-            Tu es un analyste support senior. Analyse ce ticket et reponds UNIQUEMENT en JSON strict valide, sans markdown, sans texte autour.
+            You are an AI ticket classification system.
 
-            Ticket :
-            Titre : %s
-            Description : %s
+                Classify the customer ticket into EXACTLY ONE category based on the MAIN PURPOSE and MEANING of the ticket, not isolated keywords.
 
-            Instructions :
-            1. Classe dans EXACTEMENT une categorie parmi : ACCOUNT_ACCESS, BILLING, TECHNICAL, ORDER, DELIVERY, SECURITY, INFORMATION, OTHER
-            2. Identifie le sentiment parmi : SATISFIED, NEUTRAL, CONFUSED, FRUSTRATED, DISSATISFIED
-            3. Donne un score de confiance entre 0.0 et 1.0 pour chaque
-            4. Explique en UNE PHRASE chaque decision dans "explanation"
+                The only valid categories are ACCOUNT_ACCESS, BILLING, TECHNICAL, ORDER, DELIVERY, SECURITY, and INFORMATION.
 
-            Format JSON obligatoire :
+                BILLING:
+                - Payments, card payments, duplicate charges, refunds, transactions, money debited, invoices, billing problems, and payment failures.
+                - A failed or declined payment is BILLING when the customer's main problem is the payment or money.
+                - Do not classify it as TECHNICAL just because words such as "failed", "error", or "problem" appear.
+
+                TECHNICAL:
+                - Application crashes, website errors, API errors, pages not loading, server/system errors, software bugs, and technical malfunctions.
+
+                ACCOUNT:
+                - Account locked, cannot log in, password problems, account access problems, account activation, and profile/account access.
+
+                Examples that must be respected:
+                - "Card charged twice" -> BILLING
+                - "Payment was declined" -> BILLING
+                - "I want a refund for a payment" -> BILLING
+                - "The application crashes when opening the dashboard" -> TECHNICAL
+                - "The website page does not load" -> TECHNICAL
+                - "My account is locked" -> ACCOUNT
+                - "I cannot log in to my account" -> ACCOUNT
+                - "I forgot my password" -> ACCOUNT
+
+                Read both the title and description. The description has priority when it is more specific.
+
+            INPUT:
+
+            Title:
+            %s
+
+            Description:
+            %s
+
+            OUTPUT:
+
+                        Respond ONLY with valid JSON in exactly this structure:
             {
               "category": "BILLING",
-              "categoryConfidence": 0.92,
-              "sentiment": "FRUSTRATED",
-              "sentimentConfidence": 0.85,
-              "explanation": {
-                "categoryReason": "Le ticket concerne une erreur de facturation.",
-                "sentimentReason": "Le client exige un remboursement immediat."
-              }
+                            "confidence": 0.95
             }
+
+                        The category value MUST be exactly one of: ACCOUNT_ACCESS, BILLING, TECHNICAL, ORDER, DELIVERY, SECURITY, INFORMATION.
+                        Do not add explanations or additional fields.
             """.formatted(title, description);
     }
 

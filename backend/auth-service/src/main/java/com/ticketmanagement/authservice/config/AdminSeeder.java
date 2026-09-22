@@ -27,24 +27,31 @@ public class AdminSeeder implements CommandLineRunner {
     @Value("${admin.password:}")
     private String adminPassword;
 
+    @Value("${admin.reset-password-on-startup:false}")
+    private boolean resetPasswordOnStartup;
+
     @Override
     public void run(String... args) throws Exception {
-        if (userRepository.count() == 0) {
-            if (adminPassword == null || adminPassword.isBlank()) {
-                log.error("Admin password not set! Please set ADMIN_PASSWORD environment variable.");
-                return;
-            }
-
-            User admin = new User();
-            admin.setUsername(adminUsername);
-            admin.setEmail(adminEmail);
-            admin.setPasswordHash(passwordEncoder.encode(adminPassword));
-            admin.setRole(Role.ADMIN);
-            admin.setFullName("System Administrator");
-            admin.setActive(true);
-
-            userRepository.save(admin);
-            log.info("Admin user created successfully!");
+        if (adminPassword == null || adminPassword.isBlank()) {
+            log.error("Admin password not set! Please set ADMIN_PASSWORD environment variable.");
+            return;
         }
+
+        User admin = userRepository.findByUsername(adminUsername)
+                .or(() -> userRepository.findByEmail(adminEmail))
+                .orElseGet(User::new);
+
+        admin.setUsername(adminUsername);
+        admin.setEmail(adminEmail);
+        admin.setRole(Role.ADMIN);
+        admin.setFullName("System Administrator");
+        admin.setActive(true);
+        admin.setMustChangePassword(false);
+        if (admin.getId() == null || resetPasswordOnStartup) {
+            admin.setPasswordHash(passwordEncoder.encode(adminPassword));
+        }
+
+        userRepository.save(admin);
+        log.info("Admin user is ready: {}", adminEmail);
     }
 }

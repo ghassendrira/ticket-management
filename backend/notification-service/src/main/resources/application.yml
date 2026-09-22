@@ -20,6 +20,13 @@ server:
 internal:
   service-secret: ${INTERNAL_SERVICE_SECRET:my-super-secret-internal-key-for-service-to-service-communication-only}
 
+auth:
+  service:
+    url: ${AUTH_SERVICE_URL:http://localhost:8082}
+
+jwt:
+  secret: ${JWT_SECRET:dGhpc0lzQVZlcnlMb25nQW5kUmFuZG9tU2VjcmV0S2V5Rm9yRGV2ZWxvcG1lbnRPbmx5MTIzNDU2Nzg5MA==}
+
 brevo:
   api-key: ${BREVO_API_KEY:}
   sender-email: ${BREVO_SENDER_EMAIL:}

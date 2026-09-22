@@ -6,7 +6,6 @@ import com.ticketmanagement.aiservice.repository.TicketEmbeddingRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,7 +20,6 @@ public class SimilarTicketService {
 
     private final OllamaService ollamaService;
     private final TicketEmbeddingRepository embeddingRepository;
-    private final JdbcTemplate jdbcTemplate;
 
     @Value("${ai.similarity.threshold:0.70}")
     private double similarityThreshold;
@@ -30,11 +28,9 @@ public class SimilarTicketService {
     private int maxResults;
 
     public SimilarTicketService(OllamaService ollamaService,
-                                TicketEmbeddingRepository embeddingRepository,
-                                JdbcTemplate jdbcTemplate) {
+                                TicketEmbeddingRepository embeddingRepository) {
         this.ollamaService = ollamaService;
         this.embeddingRepository = embeddingRepository;
-        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional
@@ -62,40 +58,39 @@ public class SimilarTicketService {
         log.info("Searching similar resolved tickets for: {}", currentTicketId);
 
         List<Double> embeddingList = ollamaService.generateEmbedding(ticketContent);
-        String vectorString = toVectorString(embeddingList);
+        float[] queryEmbedding = toFloatArray(embeddingList);
 
-        String sql = """
-            SELECT 
-                ticket_id,
-                CAST(1 - (embedding <=> ?::vector(768)) AS double precision) AS similarity,
-                resolution_summary
-            FROM ticket_embeddings
-            WHERE status IN ('RESOLVED', 'CLOSED')
-              AND ticket_id != ?::uuid
-            ORDER BY embedding <=> ?::vector(768)
-            LIMIT ?
-            """;
+        List<TicketEmbedding> allEmbeddings = embeddingRepository.findAllByStatusIn(List.of("RESOLVED", "CLOSED"));
 
-        List<SimilarTicketResponse> results = jdbcTemplate.query(
-                sql,
-                (rs, rowNum) -> {
-                    double similarity = rs.getDouble("similarity");
-                    similarity = Math.max(0.0, Math.min(1.0, similarity));
-                    return new SimilarTicketResponse(
-                            UUID.fromString(rs.getString("ticket_id")),
-                            similarity,
-                            rs.getString("resolution_summary")
-                    );
-                },
-                vectorString,
-                currentTicketId.toString(),
-                vectorString,
-                maxResults
-        );
-
-        return results.stream()
+        return allEmbeddings.stream()
+                .filter(e -> !e.getTicketId().equals(currentTicketId))
+                .map(e -> {
+                    float[] storedEmbedding = e.getEmbedding();
+                    double similarity = cosineSimilarity(queryEmbedding, storedEmbedding);
+                    return new SimilarTicketResponse(e.getTicketId(), similarity, e.getResolutionSummary());
+                })
                 .filter(r -> r.similarityScore() >= similarityThreshold)
+                .sorted((a, b) -> Double.compare(b.similarityScore(), a.similarityScore()))
+                .limit(maxResults)
                 .toList();
+    }
+
+    private double cosineSimilarity(float[] a, float[] b) {
+        if (a.length != b.length) {
+            return 0.0;
+        }
+        double dotProduct = 0.0;
+        double normA = 0.0;
+        double normB = 0.0;
+        for (int i = 0; i < a.length; i++) {
+            dotProduct += a[i] * b[i];
+            normA += a[i] * a[i];
+            normB += b[i] * b[i];
+        }
+        if (normA == 0.0 || normB == 0.0) {
+            return 0.0;
+        }
+        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 
     private String buildCombinedContent(String ticketContent, String resolutionSummary) {

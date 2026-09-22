@@ -197,8 +197,12 @@ export class SidebarComponent {
       items.push({ icon: '👥', labelKey: 'APP.NAV.TEAM', route: '/team' });
     }
 
-    items.push({ icon: '📊', labelKey: 'APP.NAV.ANALYTICS', route: '/analytics' });
-    items.push({ icon: '🤖', labelKey: 'APP.NAV.AI_ASSISTANT', route: '/ai' });
+    if (user?.role === 'ADMIN' || user?.role === 'MANAGER') {
+      items.push({ icon: '🤖', labelKey: 'APP.NAV.AI_ASSISTANT', route: '/ai' });
+      items.push({ icon: '📄', labelKey: 'APP.NAV.DOCUMENTS', route: '/documents' });
+      items.push({ icon: '📁', labelKey: 'APP.NAV.CATEGORIES', route: '/categories' });
+      items.push({ icon: '📊', labelKey: 'APP.NAV.ANALYTICS', route: '/analytics' });
+    }
 
     if (user?.role === 'MANAGER' || user?.role === 'ADMIN') {
       items.splice(2, 0, { icon: '🧩', labelKey: 'APP.NAV.TEAM_MANAGEMENT', route: '/teams' });

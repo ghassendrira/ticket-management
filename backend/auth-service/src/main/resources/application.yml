@@ -31,8 +31,9 @@ cors:
 
 admin:
   username: ${ADMIN_USERNAME:admin}
-  email: ${ADMIN_EMAIL:admin@ticketflow.local}
-  password: ${ADMIN_PASSWORD:POSTGRES_PASSWORD}
+  email: ${ADMIN_EMAIL:admin@rag-portal.com}
+  password: ${ADMIN_PASSWORD:RagPortalAdmin123!}
+  reset-password-on-startup: ${ADMIN_RESET_PASSWORD_ON_STARTUP:true}
 
 brevo:
   api-key: ${BREVO_API_KEY:}

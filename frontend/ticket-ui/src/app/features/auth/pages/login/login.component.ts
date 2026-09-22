@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../../../core/services/auth.service';
 import { ButtonComponent } from '../../../../shared/components/button/button.component';
@@ -46,8 +46,8 @@ import { NavbarComponent } from '../../../../shared/components/navbar/navbar.com
                 type="text"
                 [label]="'Username' | translate"
                 [placeholder]="'Username' | translate"
-                formControlName="usernameOrEmail"
-                [errorMessage]="getErrorMessage('usernameOrEmail')"
+                formControlName="username"
+                [errorMessage]="getErrorMessage('username')"
               />
 
               <app-password-input
@@ -189,10 +189,11 @@ export class LoginComponent {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   readonly translate = inject(TranslateService);
 
   loginForm = this.fb.group({
-    usernameOrEmail: this.fb.control('', [Validators.required]),
+    username: this.fb.control('', [Validators.required]),
     password: this.fb.control('', [Validators.required])
   });
 
@@ -217,10 +218,17 @@ export class LoginComponent {
     this.errorMessage.set(null);
 
     this.authService.login({
-      usernameOrEmail: this.loginForm.value.usernameOrEmail!,
+      username: this.loginForm.value.username!,
       password: this.loginForm.value.password!
     }).subscribe({
-      next: () => {
+      next: (response) => {
+        const user = response?.user;
+        if (user?.mustChangePassword) {
+          void this.router.navigate(['/change-password']);
+        } else {
+          const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+          void this.router.navigateByUrl(returnUrl || '/dashboard');
+        }
       },
       error: () => {
         this.errorMessage.set(this.translate.instant('AUTH.LOGIN.INVALID_CREDENTIALS'));

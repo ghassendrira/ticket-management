@@ -20,4 +20,6 @@ public class TicketRequestDTO {
     private Priority priority;
     private String customerId;
     private UUID teamId;
+    private String requestId;
+    private String conversationId;
 }

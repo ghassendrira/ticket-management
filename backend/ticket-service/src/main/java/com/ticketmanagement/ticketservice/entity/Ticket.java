@@ -7,7 +7,15 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "tickets")
+@Table(name = "tickets", indexes = {
+    @Index(name = "idx_tickets_created_at", columnList = "created_at"),
+    @Index(name = "idx_tickets_updated_at", columnList = "updated_at"),
+    @Index(name = "idx_tickets_status", columnList = "status"),
+    @Index(name = "idx_tickets_priority", columnList = "priority"),
+    @Index(name = "idx_tickets_category", columnList = "category"),
+    @Index(name = "idx_tickets_assigned_agent", columnList = "assigned_agent_id"),
+    @Index(name = "idx_tickets_team", columnList = "team_id")
+})
 @Getter
 @Setter
 public class Ticket {
@@ -37,6 +45,9 @@ public class Ticket {
 
     @Column(name = "request_id")
     private String requestId;
+
+    @Column(name = "conversation_id")
+    private String conversationId;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

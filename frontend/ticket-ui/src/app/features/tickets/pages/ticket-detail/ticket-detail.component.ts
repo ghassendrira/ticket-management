@@ -70,7 +70,7 @@ interface DescriptionTranslationState {
                     {{ getPriorityLabel(ticket()!.priority) }}
                   </span>
                 </div>
-                <span class="category-badge">
+                <span class="category-badge" [class]="'category-' + ticket()!.category.toLowerCase()">
                   {{ getCategoryLabel(ticket()!.category) }}
                 </span>
               </div>
@@ -844,6 +844,38 @@ interface DescriptionTranslationState {
       color: #ef4444;
     }
     .category-badge {
+      background: rgba(107, 114, 128, 0.1);
+      color: #6b7280;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    .category-badge.category-account_access {
+      background: rgba(59, 130, 246, 0.1);
+      color: #3b82f6;
+    }
+    .category-badge.category-billing {
+      background: rgba(234, 179, 8, 0.1);
+      color: #eab308;
+    }
+    .category-badge.category-technical {
+      background: rgba(139, 92, 246, 0.1);
+      color: #8b5cf6;
+    }
+    .category-badge.category-order {
+      background: rgba(34, 197, 94, 0.1);
+      color: #22c55e;
+    }
+    .category-badge.category-delivery {
+      background: rgba(249, 115, 22, 0.1);
+      color: #f97316;
+    }
+    .category-badge.category-security {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+    .category-badge.category-information {
       background: rgba(107, 114, 128, 0.1);
       color: #6b7280;
     }

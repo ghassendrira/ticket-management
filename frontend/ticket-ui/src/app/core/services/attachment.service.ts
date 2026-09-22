@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { catchError, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment.development';
 
-const API_URL = `${environment.apiUrl}/api`;
+const API_URL = environment.ticketApiUrl;
 
 export interface AttachmentResponse {
   id: string;

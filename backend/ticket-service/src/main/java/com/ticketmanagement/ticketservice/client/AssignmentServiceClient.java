@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
@@ -11,6 +12,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.Set;
 import java.util.HashSet;
+import java.net.http.HttpClient;
+import java.time.Duration;
 /**
  * Client for communicating with the assignment-service via its internal API.
  * Used by ticket-service to look up team manager, team membership, and agent lists.
@@ -19,14 +22,20 @@ import java.util.HashSet;
 @Slf4j
 public class AssignmentServiceClient {
     private final RestClient restClient;
+    private final String internalServiceSecret;
 
     public AssignmentServiceClient(
             @Value("${assignment.service.url}") String assignmentServiceUrl,
             @Value("${internal.service-secret}") String internalServiceSecret
     ) {
+        this.internalServiceSecret = internalServiceSecret;
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
+            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build());
+        requestFactory.setReadTimeout(Duration.ofSeconds(3));
         this.restClient = RestClient.builder()
                 .baseUrl(assignmentServiceUrl)
                 .defaultHeader("X-Internal-Service-Key", internalServiceSecret)
+            .requestFactory(requestFactory)
                 .build();
     }
 
@@ -202,6 +211,137 @@ public class AssignmentServiceClient {
         } catch (Exception e) {
             log.error("Failed to get agents for team {}: {}", teamId, e.getMessage(), e);
             return List.of();
+        }
+    }
+
+    public List<Map<String, Object>> getAllAgents() {
+        try {
+            List<Map<String, Object>> agents = restClient.get()
+                    .uri("/api/agents")
+                    .header("X-Internal-Service-Key", internalServiceSecret)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            return agents != null ? agents : List.of();
+        } catch (Exception e) {
+            log.error("Failed to get all agents: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    public Map<String, Object> getAgentById(String id) {
+        try {
+            Map<String, Object> agent = restClient.get()
+                    .uri("/api/agents/{id}", id)
+                    .header("X-Internal-Service-Key", internalServiceSecret)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            return agent != null ? agent : Map.of();
+        } catch (Exception e) {
+            log.error("Failed to get agent {}: {}", id, e.getMessage(), e);
+            return Map.of();
+        }
+    }
+
+    public List<Map<String, Object>> getAllTeams(String userId, String userRole) {
+        try {
+            List<Map<String, Object>> teams = restClient.get()
+                    .uri("/api/teams")
+                    .header("X-User-Id", userId)
+                    .header("X-User-Role", userRole)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            return teams != null ? teams : List.of();
+        } catch (Exception e) {
+            log.error("Failed to get all teams: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    public List<Map<String, Object>> getMyTeams(String userId, String userRole) {
+        try {
+            List<Map<String, Object>> teams = restClient.get()
+                    .uri("/api/teams/my-teams")
+                    .header("X-User-Id", userId)
+                    .header("X-User-Role", userRole)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            return teams != null ? teams : List.of();
+        } catch (Exception e) {
+            log.error("Failed to get my teams: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    public List<Map<String, Object>> getAvailableManagers(String userRole) {
+        try {
+            List<Map<String, Object>> managers = restClient.get()
+                    .uri("/api/teams/managers/available")
+                    .header("X-User-Role", userRole)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            return managers != null ? managers : List.of();
+        } catch (Exception e) {
+            log.error("Failed to get available managers: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    public Map<String, Object> createTeam(Map<String, Object> teamRequest, String userId, String userRole) {
+        try {
+            Map<String, Object> team = restClient.post()
+                    .uri("/api/teams")
+                    .header("X-User-Id", userId)
+                    .header("X-User-Role", userRole)
+                    .body(teamRequest)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            return team != null ? team : Map.of();
+        } catch (Exception e) {
+            log.error("Failed to create team: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to create team: " + e.getMessage(), e);
+        }
+    }
+
+    public List<Map<String, Object>> getTeamAgents(String teamId, String userId, String userRole) {
+        try {
+            List<Map<String, Object>> agents = restClient.get()
+                    .uri("/api/teams/{teamId}/agents", teamId)
+                    .header("X-User-Id", userId)
+                    .header("X-User-Role", userRole)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            return agents != null ? agents : List.of();
+        } catch (Exception e) {
+            log.error("Failed to get team agents: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    public void addAgentToTeam(String teamId, String agentUserId, String userId, String userRole) {
+        try {
+            restClient.post()
+                    .uri("/api/teams/{teamId}/agents/{agentUserId}", teamId, agentUserId)
+                    .header("X-User-Id", userId)
+                    .header("X-User-Role", userRole)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception e) {
+            log.error("Failed to add agent to team: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to add agent to team: " + e.getMessage(), e);
+        }
+    }
+
+    public void removeAgentFromTeam(String teamId, String agentUserId, String userId, String userRole) {
+        try {
+            restClient.delete()
+                    .uri("/api/teams/{teamId}/agents/{agentUserId}", teamId, agentUserId)
+                    .header("X-User-Id", userId)
+                    .header("X-User-Role", userRole)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception e) {
+            log.error("Failed to remove agent from team: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to remove agent from team: " + e.getMessage(), e);
         }
     }
 }

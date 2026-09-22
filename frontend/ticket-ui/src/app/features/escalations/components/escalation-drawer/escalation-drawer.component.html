@@ -33,14 +33,12 @@
             </h3>
             <div class="info-card" (click)="goToTicket()" role="button" tabindex="0">
               <div class="ticket-header-row">
-                <div class="ticket-id">#{{ escalation!.ticketRequestId || escalation!.ticketId.substring(0, 8) }}</div>
-                @if (escalation!.ticketPriority) {
-                  <span class="priority-badge" [class]="escalation!.ticketPriority.toLowerCase()">
-                    {{ getPriorityLabel(escalation!.ticketPriority) }}
-                  </span>
-                }
+                <div class="ticket-id">#{{ escalation!.ticketId ? escalation!.ticketId.substring(0, 8) : escalation!.id.substring(0, 8) }}</div>
+                <span class="priority-badge" [class]="escalation!.priority.toLowerCase()">
+                  {{ getPriorityLabel(escalation!.priority) }}
+                </span>
               </div>
-              <div class="ticket-title-row">{{ escalation!.ticketTitle || ('LIST.EMPTY_UNTITLED' | translate) }}</div>
+              <div class="ticket-title-row">{{ escalation!.title || ('LIST.EMPTY_UNTITLED' | translate) }}</div>
               <div class="ticket-meta-row">
                 @if (escalation!.ticketStatus) {
                   <span class="status-badge ticket-status" [class]="escalation!.ticketStatus.toLowerCase()">
@@ -59,7 +57,7 @@
               {{ 'ESCALATION_DRAWER.REASON_LABEL' | translate }}
             </h3>
             <div class="reason-card">
-              <p class="reason-text">{{ escalation!.reason }}</p>
+              <p class="reason-text">{{ escalation!.summary }}</p>
             </div>
           </section>
 
@@ -72,20 +70,8 @@
             <div class="context-grid">
               <div class="context-item">
                 <span class="context-label">{{ 'ESCALATION_DRAWER.REQUESTED_BY' | translate }}</span>
-                <span class="context-value">{{ escalation!.requestedByAgentName || escalation!.requestedByAgentId }}</span>
+                <span class="context-value">{{ escalation!.categoryId }}</span>
               </div>
-              @if (escalation!.teamName) {
-                <div class="context-item">
-                  <span class="context-label">{{ 'ESCALATION_DRAWER.TEAM_LABEL' | translate }}</span>
-                  <span class="context-value">{{ escalation!.teamName }}</span>
-                </div>
-              }
-              @if (escalation!.reassignedToAgentName || escalation!.reassignedToAgentId) {
-                <div class="context-item">
-                  <span class="context-label">{{ 'ESCALATION_DRAWER.REASSIGNED_TO' | translate }}</span>
-                  <span class="context-value">{{ escalation!.reassignedToAgentName || escalation!.reassignedToAgentId }}</span>
-                </div>
-              }
               <div class="context-item">
                 <span class="context-label">{{ 'ESCALATION_DRAWER.CREATED_LABEL' | translate }}</span>
                 <span class="context-value">{{ formatDate(escalation!.createdAt) }}</span>
@@ -98,14 +84,14 @@
           </section>
 
           <!-- Manager Response Reason (if rejected) -->
-          @if (escalation!.status === 'REJECTED' && escalation!.managerResponseReason) {
+          @if (escalation!.status === 'REJECTED') {
             <section class="info-section">
               <h3 class="section-title rejection-title">
                 <span class="section-icon">❌</span>
                 {{ 'ESCALATION_DRAWER.REJECTION_REASON_LABEL' | translate }}
               </h3>
               <div class="reason-card rejection-card">
-                <p class="reason-text">{{ escalation!.managerResponseReason }}</p>
+                <p class="reason-text">{{ escalation!.summary }}</p>
               </div>
             </section>
           }
@@ -151,7 +137,7 @@
                   <p class="action-group-desc">{{ 'ESCALATION_DRAWER.REASSIGN_DESC' | translate }}</p>
                 </div>
                 <div class="select-group">
-                  <label class="field-label">{{ 'ESCALATION_DRAWER.REASSIGN_SELECT_AGENT' | translate: { team: escalation!.teamName || ('ESCALATION_DRAWER.TEAM_LABEL' | translate) } }}</label>
+                  <label class="field-label">{{ 'ESCALATION_DRAWER.REASSIGN_SELECT_AGENT' | translate: { team: 'ESCALATION_DRAWER.TEAM_LABEL' | translate } }}</label>
                   <select
                     class="form-control"
                     [ngModel]="selectedReassignAgentId()"

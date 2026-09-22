@@ -13,7 +13,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -32,7 +32,7 @@ gemini:
 ollama:
   base-url: http://localhost:11434
   embedding-model: nomic-embed-text
-  chat-model: qwen2.5:7b
+  chat-model: llama3.2:3b
 
 ai:
   similarity:

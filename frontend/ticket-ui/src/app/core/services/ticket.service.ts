@@ -1,12 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { catchError, throwError } from 'rxjs';
+import { catchError, map, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment.development';
 import { AttachmentResponse } from './attachment.service';
 import { AuthService } from './auth.service';
 
-const API_URL = `${environment.apiUrl}/api/tickets`;
-const ANALYTICS_URL = `${environment.apiUrl}/api/analytics`;
+const API_URL = `${environment.ticketApiUrl}/tickets`;
+const ANALYTICS_URL = `${environment.ticketApiUrl}/analytics`;
 
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type Category = 'ACCOUNT_ACCESS' | 'BILLING' | 'TECHNICAL' | 'ORDER' | 'DELIVERY' | 'SECURITY' | 'INFORMATION';
@@ -152,12 +152,28 @@ export class TicketService {
 
   getAllTickets() {
     return this.http.get<TicketResponse[]>(API_URL)
+      .pipe(map(tickets => tickets.map(ticket => this.normalizeTicket(ticket))))
       .pipe(catchError(this.handleError));
   }
 
   getTicketById(id: string) {
     return this.http.get<TicketDetailResponse>(`${API_URL}/${id}`)
+      .pipe(map(ticket => this.normalizeTicket(ticket) as TicketDetailResponse))
       .pipe(catchError(this.handleError));
+  }
+
+  private normalizeTicket<T extends TicketResponse>(ticket: T): T {
+    return {
+      ...ticket,
+      title: ticket.title || 'Ticket sans titre',
+      description: ticket.description || '',
+      status: ticket.status || 'NEW',
+      priority: ticket.priority || 'MEDIUM',
+      category: ticket.category || 'INFORMATION',
+      createdAt: ticket.createdAt || ticket.updatedAt || new Date().toISOString(),
+      updatedAt: ticket.updatedAt || ticket.createdAt || new Date().toISOString(),
+      assignedAgentName: ticket.assignedAgentName || undefined,
+    } as T;
   }
 
   createTicket(request: TicketRequest) {
@@ -246,7 +262,7 @@ export class TicketService {
       headers['X-User-Id'] = user.id;
       headers['X-User-Role'] = user.role;
     }
-    return this.http.get<TeamMemberWorkloadResponse[]>(`${environment.apiUrl}/api/teams/${teamId}/members-workload`, { headers })
+    return this.http.get<TeamMemberWorkloadResponse[]>(`${environment.ticketApiUrl}/teams/${teamId}/members-workload`, { headers })
       .pipe(catchError(this.handleError));
   }
 
@@ -258,7 +274,7 @@ export class TicketService {
       headers['X-User-Role'] = user.role;
     }
     return this.http.get<TeamActivityResponse[]>(
-      `${environment.apiUrl}/api/teams/${teamId}/activity`,
+      `${environment.ticketApiUrl}/teams/${teamId}/activity`,
       { params: { hours }, headers }
     ).pipe(catchError(this.handleError));
   }

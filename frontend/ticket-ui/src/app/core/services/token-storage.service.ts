@@ -1,28 +1,25 @@
 import { Injectable, signal } from '@angular/core';
 
-const REFRESH_TOKEN_KEY = 'refreshToken';
-const ACCESS_TOKEN_KEY = 'accessToken';
+export const REFRESH_TOKEN_KEY = 'refreshToken';
+export const ACCESS_TOKEN_KEY = 'accessToken';
 
 @Injectable({ providedIn: 'root' })
 export class TokenStorageService {
   private accessToken = signal<string | null>(null);
 
   constructor() {
-    // Initialize from localStorage on app start
-    const storedAccessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+    const storedAccessToken =
+      typeof localStorage !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN_KEY) : null;
     if (storedAccessToken) {
       this.accessToken.set(storedAccessToken);
     }
   }
 
-  getAccessToken() {
-    const token = this.accessToken();
-    console.log('TokenStorageService.getAccessToken called, returning:', token ? 'TOKEN_PRESENT' : 'NULL');
-    return token;
+  getAccessToken(): string | null {
+    return this.accessToken();
   }
 
   setAccessToken(token: string) {
-    console.log('TokenStorageService.setAccessToken called with token:', token ? 'TOKEN_PRESENT' : 'NULL');
     this.accessToken.set(token);
     localStorage.setItem(ACCESS_TOKEN_KEY, token);
   }

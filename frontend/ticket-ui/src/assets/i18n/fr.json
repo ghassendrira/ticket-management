@@ -20,6 +20,8 @@
       "TEAM_MANAGEMENT": "Gestion des équipes",
       "ANALYTICS": "Analytique",
       "AI_ASSISTANT": "Assistant IA",
+      "DOCUMENTS": "Documents",
+      "CATEGORIES": "Catégories",
       "USERS": "Utilisateurs",
       "NOTIFICATIONS": "Notifications",
       "ESCALATIONS": "Escalades",
@@ -116,22 +118,22 @@
     "EMPTY_UNTITLED": "Sans titre"
   },
   "AI": {
-    "SUMMARY_TITLE": "Resume IA",
-    "REGENERATE": "Regenerer",
+    "SUMMARY_TITLE": "Résumé IA",
+    "REGENERATE": "Régénérer",
     "SHOW_MORE": "Voir plus",
     "SHOW_LESS": "Voir moins",
-    "SUMMARY_UNAVAILABLE": "Le resume IA est indisponible pour le moment.",
-    "LOADING": "Generation en cours...",
+    "SUMMARY_UNAVAILABLE": "Le résumé IA est indisponible pour le moment.",
+    "LOADING": "Génération en cours...",
     "SUGGEST_REPLY": "✨ Suggérer une réponse IA",
     "SUGGEST_AGAIN": "Suggérer à nouveau",
-    "SUGGESTED_REPLY": "Reponse suggeree",
-    "USE_RESPONSE": "Utiliser cette reponse",
+    "SUGGESTED_REPLY": "Réponse suggérée",
+    "USE_RESPONSE": "Utiliser cette réponse",
     "EDIT_FIRST": "Modifier d'abord",
     "DISMISS": "Ignorer",
     "SUGGESTION_CHIP": "1 suggestion disponible",
     "SIMILAR_TICKETS": "Tickets similaires",
-    "NO_SIMILAR_FOUND": "Aucun ticket similaire trouve.",
-    "RESOLUTION_PROMPT": "Ajoutez une courte note de resolution pour les futures suggestions de tickets similaires."
+    "NO_SIMILAR_FOUND": "Aucun ticket similaire trouvé.",
+    "RESOLUTION_PROMPT": "Ajoutez une courte note de résolution pour les futures suggestions de tickets similaires."
   },
   "AUTH": {
     "LOGIN": {

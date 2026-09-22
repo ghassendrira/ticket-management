@@ -123,7 +123,16 @@ import { PaginationComponent } from '../../../../shared/components/pagination/pa
               </tr>
             </thead>
             <tbody>
-              @for (ticket of paginatedTickets(); track ticket.id) {
+              @if (loading()) {
+                @for (row of [1, 2, 3, 4, 5]; track row) {
+                  <tr class="skeleton-row" aria-hidden="true">
+                    @for (cell of [1, 2, 3, 4, 5, 6, 7, 8]; track cell) {
+                      <td><span class="skeleton-cell"></span></td>
+                    }
+                  </tr>
+                }
+              } @else {
+                @for (ticket of paginatedTickets(); track ticket.id) {
                 <tr>
                   <td class="ticket-id">{{ ticket.requestId || ticket.id.substring(0, 8) }}</td>
                   <td class="ticket-title">{{ ticket.title }}</td>
@@ -137,7 +146,11 @@ import { PaginationComponent } from '../../../../shared/components/pagination/pa
                       {{ getStatusLabel(ticket.status) | translate }}
                     </span>
                   </td>
-                  <td>{{ getCategoryLabel(ticket.category) | translate }}</td>
+                   <td>
+                      <span class="category-badge" [class]="'category-' + ticket.category.toLowerCase()">
+                        {{ getCategoryLabel(ticket.category) | translate }}
+                      </span>
+                    </td>
                   <td>{{ ticket.assignedAgentName || ('TICKET.UNASSIGNED' | translate) }}</td>
                   <td>{{ formatDate(ticket.createdAt) }}</td>
                   <td>
@@ -146,6 +159,7 @@ import { PaginationComponent } from '../../../../shared/components/pagination/pa
                     </div>
                   </td>
                 </tr>
+                }
               }
             </tbody>
           </table>
@@ -291,6 +305,43 @@ import { PaginationComponent } from '../../../../shared/components/pagination/pa
       color: #9ca3af;
     }
 
+    .category-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      background: rgba(107, 114, 128, 0.1);
+      color: #6b7280;
+    }
+    .category-badge.category-account_access {
+      background: rgba(59, 130, 246, 0.1);
+      color: #3b82f6;
+    }
+    .category-badge.category-billing {
+      background: rgba(234, 179, 8, 0.1);
+      color: #eab308;
+    }
+    .category-badge.category-technical {
+      background: rgba(139, 92, 246, 0.1);
+      color: #8b5cf6;
+    }
+    .category-badge.category-order {
+      background: rgba(34, 197, 94, 0.1);
+      color: #22c55e;
+    }
+    .category-badge.category-delivery {
+      background: rgba(249, 115, 22, 0.1);
+      color: #f97316;
+    }
+    .category-badge.category-security {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+    }
+    .category-badge.category-information {
+      background: rgba(107, 114, 128, 0.1);
+      color: #6b7280;
+    }
+
     .actions {
       display: flex;
       gap: 0.5rem;
@@ -335,6 +386,20 @@ import { PaginationComponent } from '../../../../shared/components/pagination/pa
       flex: 1 1 200px;
     }
 
+    .skeleton-cell {
+      display: block;
+      width: 76%;
+      height: 14px;
+      border-radius: 6px;
+      background: var(--bg-secondary);
+      animation: ticket-skeleton 1.2s ease-in-out infinite alternate;
+    }
+
+    @keyframes ticket-skeleton {
+      from { opacity: 0.45; }
+      to { opacity: 1; }
+    }
+
     .search-input:focus {
       border-color: var(--accent-violet);
       box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
@@ -374,6 +439,7 @@ export class TicketsListComponent implements OnInit {
   private errorMessageService = inject(ErrorMessageService);
 
   allTickets = signal<TicketResponse[]>([]);
+  loading = signal(true);
   errorMessage = signal<string | null>(null);
   errorOverlay = signal<NormalizedHttpError | null>(null);
   showCreateModal = signal(false);
@@ -449,18 +515,21 @@ export class TicketsListComponent implements OnInit {
   }
 
   loadTickets() {
+    this.loading.set(true);
     this.ticketService.getAllTickets().subscribe({
       next: tickets => {
         this.allTickets.set(tickets);
         this.resetFiltersAndSorting();
         this.errorMessage.set(null);
         this.errorOverlay.set(null);
+        this.loading.set(false);
       },
       error: err => {
         console.error('Failed to load tickets:', err);
         const normalized = this.errorMessageService.normalizeHttpError(err, 'ERROR.LOAD_TICKETS');
         this.errorOverlay.set(normalized);
         this.errorMessage.set(normalized.message);
+        this.loading.set(false);
       }
     });
   }

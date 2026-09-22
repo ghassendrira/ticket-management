@@ -39,6 +39,109 @@ public class TeamStatsController {
     private final TicketRepository ticketRepository;
     private final TicketHistoryRepository ticketHistoryRepository;
 
+    @GetMapping
+    public ResponseEntity<List<Map<String, Object>>> getTeams(
+            @RequestHeader("X-User-Id") String userIdHeader,
+            @RequestHeader("X-User-Role") String roleHeader
+    ) {
+        try {
+            List<Map<String, Object>> allTeams = assignmentServiceClient.getAllTeams(userIdHeader, roleHeader);
+            return ResponseEntity.ok(allTeams);
+        } catch (Exception e) {
+            log.warn("Failed to fetch teams from assignment-service: {}", e.getMessage());
+            return ResponseEntity.ok(List.of());
+        }
+    }
+
+    @GetMapping("/my-teams")
+    public ResponseEntity<List<Map<String, Object>>> getMyTeams(
+            @RequestHeader("X-User-Id") String userIdHeader,
+            @RequestHeader("X-User-Role") String roleHeader
+    ) {
+        try {
+            List<Map<String, Object>> myTeams = assignmentServiceClient.getMyTeams(userIdHeader, roleHeader);
+            return ResponseEntity.ok(myTeams);
+        } catch (Exception e) {
+            log.warn("Failed to fetch my-teams from assignment-service: {}", e.getMessage());
+            return ResponseEntity.ok(List.of());
+        }
+    }
+
+    @GetMapping("/managers/available")
+    public ResponseEntity<List<Map<String, Object>>> getAvailableManagers(
+            @RequestHeader("X-User-Role") String roleHeader
+    ) {
+        try {
+            List<Map<String, Object>> managers = assignmentServiceClient.getAvailableManagers(roleHeader);
+            return ResponseEntity.ok(managers);
+        } catch (Exception e) {
+            log.warn("Failed to fetch available managers from assignment-service: {}", e.getMessage());
+            return ResponseEntity.ok(List.of());
+        }
+    }
+
+    @PostMapping
+    public ResponseEntity<?> createTeam(
+            @RequestBody Map<String, Object> teamRequest,
+            @RequestHeader("X-User-Id") String userIdHeader,
+            @RequestHeader("X-User-Role") String roleHeader
+    ) {
+        try {
+            Map<String, Object> team = assignmentServiceClient.createTeam(teamRequest, userIdHeader, roleHeader);
+            return ResponseEntity.status(201).body(team);
+        } catch (Exception e) {
+            log.error("Failed to create team: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{teamId}/agents")
+    public ResponseEntity<List<Map<String, Object>>> getTeamAgents(
+            @PathVariable UUID teamId,
+            @RequestHeader("X-User-Id") String userIdHeader,
+            @RequestHeader("X-User-Role") String roleHeader
+    ) {
+        try {
+            List<Map<String, Object>> agents = assignmentServiceClient.getTeamAgents(teamId.toString(), userIdHeader, roleHeader);
+            return ResponseEntity.ok(agents);
+        } catch (Exception e) {
+            log.error("Failed to get team agents: {}", e.getMessage(), e);
+            return ResponseEntity.ok(List.of());
+        }
+    }
+
+    @PostMapping("/{teamId}/agents/{agentUserId}")
+    public ResponseEntity<Void> addAgentToTeam(
+            @PathVariable UUID teamId,
+            @PathVariable String agentUserId,
+            @RequestHeader("X-User-Id") String userIdHeader,
+            @RequestHeader("X-User-Role") String roleHeader
+    ) {
+        try {
+            assignmentServiceClient.addAgentToTeam(teamId.toString(), agentUserId, userIdHeader, roleHeader);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            log.error("Failed to add agent to team: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @DeleteMapping("/{teamId}/agents/{agentUserId}")
+    public ResponseEntity<Void> removeAgentFromTeam(
+            @PathVariable UUID teamId,
+            @PathVariable String agentUserId,
+            @RequestHeader("X-User-Id") String userIdHeader,
+            @RequestHeader("X-User-Role") String roleHeader
+    ) {
+        try {
+            assignmentServiceClient.removeAgentFromTeam(teamId.toString(), agentUserId, userIdHeader, roleHeader);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            log.error("Failed to remove agent from team: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
     @GetMapping("/{teamId}/members-workload")
     public ResponseEntity<List<TeamMemberWorkloadResponse>> getMembersWorkload(
             @PathVariable UUID teamId,

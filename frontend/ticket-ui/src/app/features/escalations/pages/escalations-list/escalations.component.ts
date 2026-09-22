@@ -3,14 +3,14 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
-  TicketService,
-  EscalationResponse,
   EscalationStatus,
   Priority,
   TicketStatus
 } from '../../../../core/services/ticket.service';
 import { AuthService, UserResponse } from '../../../../core/services/auth.service';
 import { UserService } from '../../../../core/services/user.service';
+import { EscalationService, Escalation } from '../../../../core/services/escalation.service';
+import { mapEscalationStatus } from '../../../../models/escalation.model';
 import { ButtonComponent } from '../../../../shared/components/button/button.component';
 import { AlertComponent } from '../../../../shared/components/alert/alert.component';
 import { PaginationComponent } from '../../../../shared/components/pagination/pagination.component';
@@ -32,12 +32,12 @@ import { firstValueFrom } from 'rxjs';
 })
 export class EscalationsListComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
-  private ticketService = inject(TicketService);
+  private escalationService = inject(EscalationService);
   private authService = inject(AuthService);
   private userService = inject(UserService);
   private router = inject(Router);
 
-  escalations = signal<EscalationResponse[]>([]);
+  escalations = signal<Escalation[]>([]);
   loading = signal(true);
   errorMessage = signal<string | null>(null);
 
@@ -54,7 +54,7 @@ export class EscalationsListComponent implements OnInit {
   pageSize = 10;
 
   agents = signal<UserResponse[]>([]);
-  selectedEscalation = signal<EscalationResponse | null>(null);
+  selectedEscalation = signal<Escalation | null>(null);
   drawerOpen = signal(false);
 
   isManager = computed(() =>
@@ -62,55 +62,55 @@ export class EscalationsListComponent implements OnInit {
   );
 
   totalCount = computed(() => this.filteredEscalations().length);
-  pendingCount = computed(() => this.escalations().filter(e => e.status === 'PENDING').length);
-  acceptedCount = computed(() => this.escalations().filter(e => e.status === 'ACCEPTED').length);
-  rejectedCount = computed(() => this.escalations().filter(e => e.status === 'REJECTED').length);
-  reassignedCount = computed(() => this.escalations().filter(e => e.status === 'REASSIGNED').length);
+  pendingCount = computed(() => this.escalations().filter(e => mapEscalationStatus(e.status) === 'PENDING').length);
+  acceptedCount = computed(() => this.escalations().filter(e => mapEscalationStatus(e.status) === 'ACCEPTED').length);
+  rejectedCount = computed(() => this.escalations().filter(e => mapEscalationStatus(e.status) === 'REJECTED').length);
+  reassignedCount = computed(() => this.escalations().filter(e => mapEscalationStatus(e.status) === 'REASSIGNED').length);
 
   filteredEscalations = computed(() => {
     let list = [...this.escalations()];
     const user = this.authService.currentUser();
 
     if (!this.isManager() && user?.role === 'AGENT') {
-      list = list.filter(e => e.requestedByAgentId === user.id);
+      list = list.filter(e => e.conversationId === user.id);
     }
 
     if (this.statusFilter()) {
-      list = list.filter(e => e.status === this.statusFilter());
+      list = list.filter(e => mapEscalationStatus(e.status) === this.statusFilter());
     }
     if (this.agentFilter()) {
-      list = list.filter(e => e.requestedByAgentId === this.agentFilter());
+      list = list.filter(e => e.conversationId === this.agentFilter());
     }
     if (this.searchQuery()) {
       const q = this.searchQuery().toLowerCase();
       list = list.filter(e =>
-        (e.ticketTitle || '').toLowerCase().includes(q) ||
-        (e.requestedByAgentName || '').toLowerCase().includes(q) ||
-        (e.reason || '').toLowerCase().includes(q) ||
-        (e.ticketRequestId || '').toLowerCase().includes(q)
+        (e.title || '').toLowerCase().includes(q) ||
+        (e.summary || '').toLowerCase().includes(q) ||
+        (e.ticketId || '').toLowerCase().includes(q) ||
+        (e.id || '').toLowerCase().includes(q)
       );
     }
     if (this.dateFrom()) {
       const from = new Date(this.dateFrom());
-      list = list.filter(e => new Date(e.createdAt) >= from);
+      list = list.filter(e => e.createdAt && new Date(e.createdAt) >= from);
     }
     if (this.dateTo()) {
       const to = new Date(this.dateTo() + 'T23:59:59');
-      list = list.filter(e => new Date(e.createdAt) <= to);
+      list = list.filter(e => e.createdAt && new Date(e.createdAt) <= to);
     }
 
     list.sort((a, b) => {
       let cmp = 0;
       switch (this.sortBy()) {
         case 'createdAt':
-          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          cmp = new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
           break;
         case 'updatedAt':
-          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+          cmp = new Date(a.updatedAt || 0).getTime() - new Date(b.updatedAt || 0).getTime();
           break;
         case 'priority':
-          const order: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
-          cmp = (order[a.ticketPriority || 'LOW'] || 3) - (order[b.ticketPriority || 'LOW'] || 3);
+          const order: Record<string, number> = { HAUTE: 0, MOYENNE: 1, BASSE: 2 };
+          cmp = (order[a.priority || 'BASSE'] || 2) - (order[b.priority || 'BASSE'] || 2);
           break;
       }
       return this.sortDirection() === 'asc' ? cmp : -cmp;
@@ -134,7 +134,7 @@ export class EscalationsListComponent implements OnInit {
   loadEscalations() {
     this.loading.set(true);
     this.errorMessage.set(null);
-    this.ticketService.listEscalations()
+    this.escalationService.listEscalations()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (data) => {
@@ -181,7 +181,7 @@ export class EscalationsListComponent implements OnInit {
     this.currentPage.set(page);
   }
 
-  openDrawer(escalation: EscalationResponse) {
+  openDrawer(escalation: Escalation) {
     this.selectedEscalation.set(escalation);
     this.drawerOpen.set(true);
   }
@@ -195,12 +195,15 @@ export class EscalationsListComponent implements OnInit {
     this.loadEscalations();
   }
 
-  viewTicket(ticketId: string) {
-    this.router.navigate(['/tickets', ticketId]);
+  viewTicket(ticketId: string | null | undefined) {
+    if (ticketId) {
+      this.router.navigate(['/tickets', ticketId]);
+    }
   }
 
-  getStatusLabel(status: EscalationStatus): string {
-    const labels: Record<EscalationStatus, string> = {
+  getStatusLabel(status: string): string {
+    const displayStatus = mapEscalationStatus(status);
+    const labels: Record<string, string> = {
       PENDING: 'Pending',
       ACCEPTED: 'Accepted',
       REJECTED: 'Rejected',
@@ -208,28 +211,29 @@ export class EscalationsListComponent implements OnInit {
       CANCELLED: 'Cancelled',
       RESOLVED: 'Resolved'
     };
-    return labels[status] || status;
+    return labels[displayStatus] || displayStatus;
   }
 
-  getPriorityLabel(priority?: Priority): string {
+  getPriorityLabel(priority?: string): string {
     if (!priority) return 'N/A';
-    const labels: Record<Priority, string> = {
-      LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High', CRITICAL: 'Critical'
+    const labels: Record<string, string> = {
+      BASSE: 'Low', MOYENNE: 'Medium', HAUTE: 'High'
     };
-    return labels[priority];
+    return labels[priority] || priority;
   }
 
-  getTicketStatusLabel(status?: TicketStatus): string {
+  getTicketStatusLabel(status?: string): string {
     if (!status) return 'N/A';
-    const labels: Record<TicketStatus, string> = {
+    const labels: Record<string, string> = {
       NEW: 'New', ASSIGNED: 'Assigned', IN_PROGRESS: 'In Progress',
       PENDING: 'Pending', RESOLVED: 'Resolved', CLOSED: 'Closed',
       REOPENED: 'Reopened', CANCELLED: 'Cancelled'
     };
-    return labels[status];
+    return labels[status] || status;
   }
 
-  formatDate(dateStr: string): string {
+  formatDate(dateStr: string | undefined): string {
+    if (!dateStr) return 'N/A';
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-US', {
       year: 'numeric', month: 'short', day: 'numeric',

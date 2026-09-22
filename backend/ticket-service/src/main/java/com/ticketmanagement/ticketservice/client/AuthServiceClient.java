@@ -5,11 +5,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.util.List;
 import java.util.UUID;
+import java.net.http.HttpClient;
+import java.time.Duration;
 
 @Component
 @Slf4j
@@ -20,9 +23,13 @@ public class AuthServiceClient {
     public AuthServiceClient(
             @Value("${auth.service.url}") String authServiceUrl,
             @Value("${internal.service-secret}") String internalServiceSecret) {
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
+            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build());
+        requestFactory.setReadTimeout(Duration.ofSeconds(3));
         this.restClient = RestClient.builder()
                 .baseUrl(authServiceUrl)
                 .defaultHeader("X-Internal-Service-Key", internalServiceSecret)
+            .requestFactory(requestFactory)
                 .build();
     }
 

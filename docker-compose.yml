@@ -1,0 +1,244 @@
+version: '3.8'
+
+services:
+  # ============ DATABASES ============
+  postgres:
+    image: postgres:15-alpine
+    container_name: ticket-system-db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ticket_system
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ticket-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============ BACKEND SERVICES ============
+  
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ticket_system
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka:8761/eureka
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./backend/auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ticket_system
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+      JWT_EXPIRATION: 86400
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  # Ticket Service
+  ticket-service:
+    build:
+      context: ./backend/ticket-service
+      dockerfile: Dockerfile
+    container_name: ticket-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ticket_system
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  # AI Service
+  ai-service:
+    build:
+      context: ./backend/ai-service
+      dockerfile: Dockerfile
+    container_name: ai-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ticket_system
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+      OLLAMA_BASE_URL: http://ollama:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  # Conversation Service (depuis IA RAG)
+  conversation-service:
+    build:
+      context: ./backend/conversation-service
+      dockerfile: Dockerfile
+    container_name: conversation-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ticket_system
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  # Knowledge Base Service (depuis IA RAG)
+  knowledge-base-service:
+    build:
+      context: ./backend/knowledge-base-service
+      dockerfile: Dockerfile
+    container_name: knowledge-base-service
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ticket_system
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+      PGVECTOR_ENABLED: "true"
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  # Assignment Service
+  assignment-service:
+    build:
+      context: ./backend/assignment-service
+      dockerfile: Dockerfile
+    container_name: assignment-service
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ticket_system
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ./backend/notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ticket_system
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  # ============ AI & ML ============
+  
+  # Ollama (pour les modèles LLM)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-server
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    networks:
+      - ticket-network
+    restart: unless-stopped
+    command: serve
+
+  # ============ FRONTEND ============
+  
+  frontend:
+    build:
+      context: ./frontend/ticket-ui
+      dockerfile: Dockerfile
+    container_name: ticket-ui-frontend
+    ports:
+      - "4200:4200"
+    environment:
+      API_URL: http://api-gateway:8080
+      NODE_ENV: production
+    depends_on:
+      - api-gateway
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+  # ============ MONITORING (Optional) ============
+  
+  # Redis (optionnel - pour caching/sessions)
+  redis:
+    image: redis:7-alpine
+    container_name: ticket-system-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ticket-network
+    restart: unless-stopped
+
+networks:
+  ticket-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  ollama_data:
+  redis_data:

@@ -9,7 +9,7 @@ import type {
   RegisterRequest,
 } from './auth.service';
 
-const API_URL = `${environment.apiUrl}/api/auth`;
+const API_URL = `${environment.authApiUrl}/api/auth`;
 
 /**
  * Raw auth HTTP calls via HttpBackend so they never pass through HttpClient interceptors.

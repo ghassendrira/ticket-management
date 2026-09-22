@@ -2,23 +2,33 @@
 <html lang="fr" dir="ltr">
 <head>
   <meta charset="utf-8">
-  <title>Triage - Smart AI Ticket Management</title>
+  <title>Assistant IA RAG & TicketFlow — Triage</title>
   <base href="/">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=yes">
+  <meta name="theme-color" content="#EEF2FF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0F1220" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Assistant IA RAG intelligent et tableau de bord TicketFlow pour la gestion de tickets support.">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <script>
-    // Apply initial theme immediately before Angular loads
+    // Apply initial theme immediately before Angular loads (no FOUC)
     (function() {
-      const saved = localStorage.getItem('ticket-ui-theme');
-      let theme;
-      if (saved === 'light' || saved === 'dark') {
-        theme = saved;
-      } else {
-        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      const KEY = 'ticket-ui-theme';
+      const KEY_LEGACY = 'rag-theme-mode';
+      let saved = localStorage.getItem(KEY);
+      if (saved !== 'light' && saved !== 'dark') {
+        saved = localStorage.getItem(KEY_LEGACY);
+        if (saved === 'light' || saved === 'dark') {
+          localStorage.setItem(KEY, saved);
+          localStorage.removeItem(KEY_LEGACY);
+        }
       }
+      const theme = (saved === 'light' || saved === 'dark')
+        ? saved
+        : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       document.documentElement.setAttribute('data-theme', theme);
     })();
 

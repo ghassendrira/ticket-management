@@ -43,13 +43,13 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "650kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "1.5MB",
+                  "maximumError": "2MB"
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "12kB",
-                  "maximumError": "20kB"
+                  "maximumWarning": "16kB",
+                  "maximumError": "24kB"
                 }
               ],
               "outputHashing": "all",
@@ -70,12 +70,17 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "port": 4200
+          },
           "configurations": {
             "production": {
-              "buildTarget": "ticket-ui:build:production"
+              "buildTarget": "ticket-ui:build:production",
+              "port": 4200
             },
             "development": {
-              "buildTarget": "ticket-ui:build:development"
+              "buildTarget": "ticket-ui:build:development",
+              "port": 4200
             }
           },
           "defaultConfiguration": "development"

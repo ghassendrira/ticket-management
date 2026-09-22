@@ -3,9 +3,9 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { catchError, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment.development';
 
-const TEAMS_API_URL = `${environment.apiUrl}/api/teams`;
-const AGENTS_API_URL = `${environment.apiUrl}/api/agents`;
-const ASSIGNMENT_API_URL = `${environment.apiUrl}/api/assignments`;
+const TEAMS_API_URL = `${environment.assignmentApiUrl}/teams`;
+const AGENTS_API_URL = `${environment.assignmentApiUrl}/agents`;
+const ASSIGNMENT_API_URL = `${environment.assignmentApiUrl}/assignments`;
 export type ManagedCategory =
   | 'ACCOUNT_ACCESS'
   | 'BILLING'

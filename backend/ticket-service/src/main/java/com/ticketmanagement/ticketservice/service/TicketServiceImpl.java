@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,10 +32,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class TicketServiceImpl implements TicketService {
 
+    private static final UUID SYSTEM_RAG_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
+
     private final TicketRepository ticketRepository;
     private final CommentRepository commentRepository;
     private final TicketHistoryRepository ticketHistoryRepository;
     private final EscalationRepository escalationRepository;
+    private final NotificationRepository notificationRepository;
     private final AuthServiceClient authServiceClient;
     private final NotificationClient notificationClient;
     private final AssignmentServiceClient assignmentServiceClient;
@@ -59,19 +63,14 @@ public class TicketServiceImpl implements TicketService {
         ticket.setCategory(dto.getCategory());
         ticket.setCustomerId(dto.getCustomerId());
         ticket.setTeamId(dto.getTeamId());
+        ticket.setRequestId(dto.getRequestId());
+        ticket.setConversationId(dto.getConversationId());
         ticket.setCreatedAt(LocalDateTime.now());
         ticket.setUpdatedAt(LocalDateTime.now());
 
         Ticket saved = ticketRepository.save(ticket);
 
-        String creatorName = null;
-        try {
-            UserSummaryDTO creator = authServiceClient.getUserById(createdByUserId);
-            if (creator != null) {
-                creatorName = creator.getFullName();
-            }
-        } catch (Exception ignored) {
-        }
+        String creatorName = SYSTEM_RAG_USER_ID.equals(createdByUserId) ? "Assistant IA RAG" : null;
         createTicketHistoryEvent(saved,
                 TicketHistoryEventType.TICKET_CREATED,
                 "Ticket created",
@@ -80,12 +79,19 @@ public class TicketServiceImpl implements TicketService {
                 creatorName
         );
 
-        if (saved.getTeamId() != null) {
-            notifyManagerNewTicket(saved);
-        }
-        if (saved.getPriority() == Priority.CRITICAL) {
-            notifyCriticalTicket(saved);
-        }
+        CompletableFuture.runAsync(() -> {
+            try {
+                if (saved.getTeamId() != null) {
+                    notifyManagerNewTicket(saved);
+                }
+                if (saved.getPriority() == Priority.CRITICAL) {
+                    notifyCriticalTicket(saved);
+                }
+                notifyAdminsNewTicket(saved);
+            } catch (Exception e) {
+                log.warn("Asynchronous ticket notifications failed for {}: {}", saved.getId(), e.getMessage());
+            }
+        });
 
         Map<UUID, UserSummaryDTO> userCache = new HashMap<>();
         return mapToTicketResponse(saved, userCache);
@@ -1024,6 +1030,47 @@ public class TicketServiceImpl implements TicketService {
         }
         for (UserSummaryDTO user : users) {
             notifyUserWithEmail(user, title, message, type, ticketId, teamId, emailBodyHtml);
+            saveLocalNotification(user.getId(), title, message, type.name(), ticketId, teamId);
+        }
+    }
+
+    private void saveLocalNotification(UUID userId, String title, String message, String type, UUID ticketId, UUID teamId) {
+        try {
+            Notification notification = new Notification();
+            notification.setUserId(userId);
+            notification.setTitle(title);
+            notification.setMessage(message);
+            notification.setType(type);
+            notification.setTicketId(ticketId);
+            notification.setTeamId(teamId);
+            notification.setRead(false);
+            notification.setCreatedAt(LocalDateTime.now());
+            notificationRepository.save(notification);
+        } catch (Exception e) {
+            log.error("Failed to save local notification for user {}: {}", userId, e.getMessage());
+        }
+    }
+
+    private void notifyAdminsNewTicket(Ticket ticket) {
+        try {
+            List<UserSummaryDTO> admins = authServiceClient.getUsersByRole("ADMIN");
+            if (admins == null || admins.isEmpty()) {
+                return;
+            }
+            String shortId = ticket.getId().toString().substring(0, 8);
+            String title = "New support ticket created";
+            String message = "A new ticket #%s has been created via client portal.\nCategory: %s\nPriority: %s".formatted(
+                    shortId,
+                    ticket.getCategory() != null ? ticket.getCategory() : "OTHER",
+                    ticket.getPriority() != null ? ticket.getPriority() : "MEDIUM"
+            );
+            for (UserSummaryDTO admin : admins) {
+                if (admin.getId() != null) {
+                    saveLocalNotification(admin.getId(), title, message, "NEW_TICKET", ticket.getId(), ticket.getTeamId());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to notify admins about new ticket: {}", e.getMessage());
         }
     }
 

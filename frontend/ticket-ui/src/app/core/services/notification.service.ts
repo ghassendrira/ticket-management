@@ -18,7 +18,8 @@ export enum NotificationType {
   ESCALATION_ACCEPTED = 'ESCALATION_ACCEPTED',
   ESCALATION_REJECTED = 'ESCALATION_REJECTED',
   ESCALATION_REASSIGNED = 'ESCALATION_REASSIGNED',
-  TEAM_UPDATE = 'TEAM_UPDATE'
+  TEAM_UPDATE = 'TEAM_UPDATE',
+  SKILL_ADDED = 'SKILL_ADDED'
 }
 
 export interface Notification {
@@ -72,7 +73,7 @@ export class NotificationService {
     }
   ];
 
-  private readonly API_URL = `${environment.apiUrl}/api/notifications`;
+  private readonly API_URL = `${environment.ticketApiUrl}/notifications`;
   private eventSource: EventSource | null = null;
   private audio: HTMLAudioElement | null = null;
 
@@ -125,6 +126,7 @@ export class NotificationService {
       case NotificationType.ESCALATION_REJECTED: return '❌';
       case NotificationType.ESCALATION_REASSIGNED: return '🔄';
       case NotificationType.TEAM_UPDATE: return '👤';
+      case NotificationType.SKILL_ADDED: return '🎯';
       default: return '🔔';
     }
   }

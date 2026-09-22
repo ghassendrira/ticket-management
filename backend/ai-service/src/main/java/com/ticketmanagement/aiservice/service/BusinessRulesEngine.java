@@ -11,7 +11,8 @@ public class BusinessRulesEngine {
 
     private static final Set<String> CRITICAL_KEYWORDS = Set.of(
         "crash", "down", "outage", "payment failed", "urgent", "blocked",
-        "cannot access", "security breach", "data loss", "hacked",
+        "payment", "double charged", "debited twice", "debite deux fois", "remboursement",
+        "today", "aujourd'hui", "demain", "cannot access", "security breach", "data loss", "hacked", "piraté",
         "502", "503", "500 error", "deadlock", "corrupt"
     );
 
@@ -19,6 +20,17 @@ public class BusinessRulesEngine {
     double score = 0.0; // aucun facteur de risque par défaut
 
     String text = (title + " " + (description != null ? description : "")).toLowerCase();
+
+    boolean explicitHigh = text.contains("urgent") || text.contains("aujourd'hui")
+        || text.contains("demain") || text.contains("débité deux fois")
+        || text.contains("debite deux fois") || text.contains("double charged");
+    boolean critical = text.contains("hacked") || text.contains("piraté")
+        || text.contains("security breach") || text.contains("compte piraté")
+        || text.contains("payment failed") || text.contains("paiement échoué")
+        || text.contains("service totalement indisponible")
+        || text.contains("tous les clients") || text.contains("plusieurs clients");
+
+    if (critical) return 100.0;
 
     int keywordHits = 0;
     for (String kw : CRITICAL_KEYWORDS) {
@@ -41,7 +53,7 @@ public class BusinessRulesEngine {
         default -> 0;
     };
 
-    return clamp(score);
+    return clamp(explicitHigh ? Math.max(score, 70.0) : score);
 }
 
 public double computeAgeSlaScore(LocalDateTime createdAt, LocalDateTime slaDeadline) {

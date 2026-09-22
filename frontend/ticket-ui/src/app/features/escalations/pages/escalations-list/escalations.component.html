@@ -151,25 +151,21 @@
               <tr class="escalation-row" (click)="openDrawer(esc)">
                 <td class="ticket-cell">
                   <button type="button" class="ticket-link" (click)="$event.stopPropagation(); viewTicket(esc.ticketId)">
-                    <span class="ticket-id">#{{ esc.ticketRequestId || esc.ticketId.substring(0, 8) }}</span>
-                    <span class="ticket-title">{{ esc.ticketTitle || 'Untitled' }}</span>
+                    <span class="ticket-id">#{{ esc.ticketId ? esc.ticketId.substring(0, 8) : esc.id.substring(0, 8) }}</span>
+                    <span class="ticket-title">{{ esc.title || 'Untitled' }}</span>
                   </button>
                 </td>
                 <td class="reason-cell">
-                  <span class="reason-text">{{ esc.reason }}</span>
+                  <span class="reason-text">{{ esc.summary }}</span>
                 </td>
-                <td>{{ esc.requestedByAgentName || esc.requestedByAgentId }}</td>
+                <td>{{ esc.categoryId }}</td>
                 @if (isManager()) {
-                  <td>{{ esc.teamName || '-' }}</td>
+                  <td>{{ esc.categoryId || '-' }}</td>
                 }
                 <td>
-                  @if (esc.ticketPriority) {
-                    <span class="priority-badge" [class]="esc.ticketPriority.toLowerCase()">
-                      {{ getPriorityLabel(esc.ticketPriority) }}
-                    </span>
-                  } @else {
-                    <span class="text-muted">N/A</span>
-                  }
+                  <span class="priority-badge" [class]="esc.priority.toLowerCase()">
+                    {{ getPriorityLabel(esc.priority) }}
+                  </span>
                 </td>
                 <td>
                   @if (esc.ticketStatus) {
@@ -190,7 +186,7 @@
                 <td class="actions-cell" (click)="$event.stopPropagation()">
                   <div class="actions">
                     <button class="action-btn" (click)="openDrawer(esc)">View</button>
-                    <button class="action-btn secondary" (click)="viewTicket(esc.ticketId)">Ticket</button>
+                    <button class="action-btn secondary" (click)="viewTicket(esc.ticketId ?? undefined)">Ticket</button>
                   </div>
                 </td>
               </tr>
