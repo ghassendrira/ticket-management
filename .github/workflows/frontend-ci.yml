@@ -1,3 +1,4 @@
+```yaml
 name: Frontend CI
 
 on:
@@ -31,5 +32,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Debug environment file
+        run: |
+          echo "=== Current directory ==="
+          pwd
+
+          echo "=== Environment directory ==="
+          ls -la src/environments
+
+          echo "=== Development environment file ==="
+          ls -la src/environments/environment.development.ts
+
+          echo "=== Git commit ==="
+          git rev-parse HEAD
+
+          echo "=== Git tracked file ==="
+          git ls-files src/environments/environment.development.ts
+
       - name: Build Angular application
         run: npm run build
+```
