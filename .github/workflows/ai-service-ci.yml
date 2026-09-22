@@ -34,8 +34,10 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Verify Maven project
-        run: ./mvnw --version
+      - name: Verify Java and Maven
+        run: |
+          java -version
+          mvn -version
 
       - name: Build and test AI Service
-        run: ./mvnw clean verify
+        run: mvn clean verify
