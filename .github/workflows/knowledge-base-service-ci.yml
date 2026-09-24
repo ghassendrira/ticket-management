@@ -1,0 +1,43 @@
+name: Knowledge Base Service CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/knowledge-base-service/**'
+      - '.github/workflows/knowledge-base-service-ci.yml'
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'backend/knowledge-base-service/**'
+      - '.github/workflows/knowledge-base-service-ci.yml'
+
+jobs:
+  build-knowledge-base-service:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend/knowledge-base-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Verify Java and Maven
+        run: |
+          java -version
+          mvn -version
+
+      - name: Build and test Knowledge Base Service
+        run: mvn clean verify
