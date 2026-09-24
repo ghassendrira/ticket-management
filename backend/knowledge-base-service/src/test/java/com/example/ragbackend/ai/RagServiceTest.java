@@ -49,7 +49,7 @@ class RagServiceTest {
         assertTrue(a.answer().toLowerCase().contains("bonjour"));
         assertTrue(a.sources().isEmpty());
         verify(vectorSearchService, never()).search(anyString());
-        verify(llmService, never()).generate(anyString(), anyString());
+        verify(llmService, never()).generateAnswer(anyString(), anyList());
     }
 
     @Test
@@ -81,7 +81,7 @@ class RagServiceTest {
         when(vectorSearchService.search("mdp")).thenReturn(chunks);
         when(confidenceCalculator.calculate(chunks)).thenReturn(0.90);
         when(confidenceCalculator.getSimilarityThreshold()).thenReturn(0.70);
-        when(llmService.generate(anyString(), anyString()))
+        when(llmService.generateAnswer(anyString(), anyList()))
             .thenReturn("Cliquez sur mot de passe oublié et saisissez votre email.");
 
         RagAnswer a = ragService.answer("mdp");
@@ -90,7 +90,7 @@ class RagServiceTest {
         assertTrue(a.confidence() >= 0.70);
         assertFalse(a.sources().isEmpty());
         assertFalse(a.answer().isBlank());
-        verify(llmService, times(1)).generate(anyString(), anyString());
+        verify(llmService, times(1)).generateAnswer(anyString(), anyList());
     }
 
     @Test
@@ -100,7 +100,7 @@ class RagServiceTest {
         when(vectorSearchService.search(anyString())).thenReturn(chunks);
         when(confidenceCalculator.calculate(anyList())).thenReturn(0.88);
         when(confidenceCalculator.getSimilarityThreshold()).thenReturn(0.70);
-        when(llmService.generate(anyString(), anyString())).thenReturn("Réponse ok.");
+        when(llmService.generateAnswer(anyString(), anyList())).thenReturn("Réponse ok.");
 
         RagAnswer a = ragService.answer("réinitialiser");
 
@@ -119,7 +119,7 @@ class RagServiceTest {
         when(vectorSearchService.search(anyString())).thenReturn(chunks);
         when(confidenceCalculator.calculate(chunks)).thenReturn(0.85);
         when(confidenceCalculator.getSimilarityThreshold()).thenReturn(0.70);
-        when(llmService.generate(anyString(), anyString()))
+        when(llmService.generateAnswer(anyString(), anyList()))
             .thenReturn("Je n'ai pas trouvé l'information demandée dans la documentation.");
 
         RagAnswer a = ragService.answer("téléphone perso pdg");
@@ -134,7 +134,7 @@ class RagServiceTest {
         when(vectorSearchService.search(anyString())).thenReturn(chunks);
         when(confidenceCalculator.calculate(chunks)).thenReturn(0.88);
         when(confidenceCalculator.getSimilarityThreshold()).thenReturn(0.70);
-        when(llmService.generate(anyString(), anyString()))
+        when(llmService.generateAnswer(anyString(), anyList()))
             .thenThrow(new RuntimeException("LLM DOWN"));
 
         RagAnswer a = ragService.answer("mdp oublié");
@@ -173,7 +173,7 @@ class RagServiceTest {
         when(vectorSearchService.search(anyString())).thenReturn(chunks);
         when(confidenceCalculator.calculate(chunks)).thenReturn(0.92);
         when(confidenceCalculator.getSimilarityThreshold()).thenReturn(0.70);
-        when(llmService.generate(anyString(), anyString())).thenReturn("OK");
+        when(llmService.generateAnswer(anyString(), anyList())).thenReturn("OK");
 
         RagAnswer a = ragService.answer("q");
 

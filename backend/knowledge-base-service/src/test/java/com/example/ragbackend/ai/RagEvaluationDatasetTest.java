@@ -70,7 +70,7 @@ class RagEvaluationDatasetTest {
 
         when(confidenceCalculator.calculate(passwordChunks)).thenReturn(0.91);
         when(confidenceCalculator.getSimilarityThreshold()).thenReturn(0.70);
-        when(llmService.generate(anyString(), anyString()))
+        when(llmService.generateAnswer(anyString(), anyList()))
             .thenReturn("Pour réinitialiser votre mot de passe, cliquez sur 'Mot de passe oublié' sur la page de connexion, puis saisissez votre adresse email. Un lien valide 15 minutes vous sera envoyé.");
 
         String question = "Comment réinitialiser mon mot de passe ?";
@@ -83,8 +83,13 @@ class RagEvaluationDatasetTest {
         assertFalse(sources.isEmpty(), "Des sources doivent être présentes");
 
         boolean sourceTrouvee = sources.stream()
-            .anyMatch(s -> s.title() != null
-                && s.title().toLowerCase().contains("mot de passe"));
+            .anyMatch(s -> {
+                if (s.title() == null) return false;
+                String t = s.title().toLowerCase();
+                return t.contains("guide-reinitialisation-mot-de-passe")
+                    || t.contains("mot de passe")
+                    || t.contains("reinitialisation");
+            });
         assertTrue(sourceTrouvee, "La source doit référencer le guide MDP");
 
         assertTrue(a.confidence() >= 0.70,

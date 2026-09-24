@@ -220,7 +220,7 @@ public class RagService {
 
     private RagAnswer buildNoAnswerResult(String reason) {
         LOGGER.debug("[RagService] Refus - {}", reason);
-        return new RagAnswer(NO_ANSWER_MESSAGE_FR, 0.0, List.of(), List.of(), false);
+        return new RagAnswer(NO_ANSWER_MESSAGE_FR, 0.25, List.of(), List.of(), false);
     }
 
     private RagAnswer buildFallbackFromContext(
@@ -253,6 +253,8 @@ public class RagService {
         String low = answer.toLowerCase().trim();
         String[] patterns = {
             "je ne trouve pas de réponse", "je ne trouve pas d'information",
+            "je n'ai pas trouvé l'information", "je n'ai pas trouvé de réponse",
+            "je n'ai trouvé aucune information",
             "pas d'information", "information not available",
             "cannot answer", "impossible de répondre", "pas assez d'information",
             "do not have enough information", "ne peut pas répondre",

@@ -50,7 +50,6 @@ class AiEscalationApiTest {
     @DisplayName("summarize-escalation: conversation vide → valeurs par défaut sûres")
     void summarize_emptyConversation_defaultValues() {
         ConversationEntity conv = mock(ConversationEntity.class);
-        when(conv.getId()).thenReturn(convId);
         when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
         when(messageRepository.findAllByConversationIdOrderByIdAsc(convId)).thenReturn(List.of());
 
@@ -69,7 +68,6 @@ class AiEscalationApiTest {
     @DisplayName("summarize-escalation: LLM retourne JSON valide → champs parsés correctement")
     void summarize_llmReturnsValidJson_parsedCorrectly() throws Exception {
         ConversationEntity conv = mock(ConversationEntity.class);
-        when(conv.getId()).thenReturn(convId);
         when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
 
         MessageEntity user = mock(MessageEntity.class);
@@ -111,7 +109,6 @@ class AiEscalationApiTest {
     @DisplayName("summarize-escalation: catégories/priorités invalides → normalisées (fallback)")
     void summarize_invalidEnumValues_normalized() {
         ConversationEntity conv = mock(ConversationEntity.class);
-        when(conv.getId()).thenReturn(convId);
         when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
         MessageEntity m = mock(MessageEntity.class);
         when(m.getRole()).thenReturn("USER");
@@ -197,7 +194,6 @@ class AiEscalationApiTest {
     @DisplayName("summarize-escalation: LLM JSON dans texte + backticks extrait correctement")
     void summarize_jsonExtractedFromSurroundingText() {
         ConversationEntity conv = mock(ConversationEntity.class);
-        when(conv.getId()).thenReturn(convId);
         when(conversationRepository.findById(convId)).thenReturn(Optional.of(conv));
         MessageEntity m = mock(MessageEntity.class);
         when(m.getRole()).thenReturn("USER");
