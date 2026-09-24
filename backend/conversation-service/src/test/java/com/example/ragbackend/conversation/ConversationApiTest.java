@@ -1,43 +1,49 @@
 package com.example.ragbackend.conversation;
 
-import com.example.conversationservice.ConversationServiceApplication;
+import com.example.ragbackend.customer.CustomerRepository;
 import com.example.ragbackend.document.ChunkRepository;
 import com.example.ragbackend.document.DocumentRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(classes = ConversationServiceApplication.class)
-@AutoConfigureMockMvc
 class ConversationApiTest {
 
-    @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
-    private ConversationRepository conversationRepository;
+    @BeforeEach
+    void setUp() {
+        ConversationApi controller = new ConversationApi(
+            mock(ConversationRepository.class),
+            mock(MessageRepository.class),
+            mock(DocumentRepository.class),
+            mock(ChunkRepository.class),
+            mock(CustomerRepository.class)
+        );
 
-    @MockBean
-    private MessageRepository messageRepository;
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
 
-    @MockBean
-    private DocumentRepository documentRepository;
-
-    @MockBean
-    private ChunkRepository chunkRepository;
+        mockMvc = MockMvcBuilders
+            .standaloneSetup(controller)
+            .setValidator(validator)
+            .build();
+    }
 
     @Test
-    void addMessageAcceptsJsonPayload() throws Exception {
-        mockMvc.perform(post("/api/conversations/00000000-0000-0000-0000-000000000000/messages")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"content\":\"bonjour\",\"role\":\"USER\",\"confidence\":0.9}"))
+    void addMessageRejectsBlankContent() throws Exception {
+        mockMvc.perform(
+                post("/api/conversations/00000000-0000-0000-0000-000000000000/messages")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"content\":\"\",\"role\":\"USER\",\"confidence\":0.9}")
+            )
             .andExpect(status().isBadRequest());
     }
 }
